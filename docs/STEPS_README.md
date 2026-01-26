@@ -269,6 +269,163 @@ export default function MealsLayout({ children }){
 
 
 
+<br>
+
+## 🔧 99. Lesson 099 — *Adding a Custom Component To A Layout*
+
+### 🧠 99.1 Context:
+
+In Next.js, **custom components** are reusable React components that can be imported and used within layouts, pages, or other components. When added to a layout, these components become part of the shared UI that persists across all routes wrapped by that layout. This pattern promotes code reusability, maintainability, and separation of concerns.
+
+**When custom components in layouts are used:**
+- **Shared UI Elements**: When you need consistent headers, navigation bars, footers, or sidebars that appear on multiple pages.
+- **Code Organization**: To break down complex layouts into smaller, manageable, and testable pieces.
+- **Reusability**: When the same component needs to be used across different layouts or pages.
+- **Separation of Concerns**: To keep layout files clean and focused, delegating specific UI responsibilities to dedicated components.
+
+**Examples from the project:**
+- `app/components/main-header.js`: A custom header component that includes the application logo, branding, and main navigation links. This component is imported and used in the root layout (`app/layout.js`), making it visible on every page of the application.
+- The `MainHeader` component encapsulates all header-related logic and markup, keeping the root layout clean and focused on its primary responsibility of wrapping the application structure.
+
+**Advantages:**
+- **Modularity**: Components can be developed, tested, and maintained independently.
+- **Reusability**: Once created, components can be imported and used in multiple places without code duplication.
+- **Maintainability**: Changes to shared UI elements only need to be made in one place, reducing the risk of inconsistencies.
+- **Readability**: Layout files remain clean and easy to understand when complex UI is extracted into named components.
+- **Testability**: Individual components can be unit tested in isolation.
+- **Performance**: Next.js can optimize component rendering independently, and components can be lazy-loaded if needed.
+
+**Disadvantages:**
+- **File Organization**: Requires careful planning of component structure and folder organization to avoid confusion.
+- **Import Overhead**: Additional import statements are needed, though this is minimal.
+- **Prop Drilling**: If components need shared data, you may need to pass props through multiple component layers or use context.
+- **Component Coupling**: Over-extraction can lead to tightly coupled components that are difficult to modify independently.
+
+**When to consider alternatives:**
+- **Client Components**: If the component needs interactivity (state, event handlers, browser APIs), it must be marked with `'use client'`, which can impact performance.
+- **Server Components**: By default, components are Server Components, which is ideal for static content and better performance. Only convert to Client Components when necessary.
+- **Layout-specific Components**: For components that are only used in one layout, consider keeping them co-located with that layout rather than in a global components folder.
+- **Third-party Libraries**: For complex UI elements (modals, dropdowns, etc.), consider using established component libraries instead of building from scratch.
+
+**Image Import Pattern:**
+When importing images in Next.js, the import returns an object with properties like `src`, `width`, `height`, and `blurDataURL`. Using `logoImg.src` accesses the optimized image path that Next.js generates. This pattern enables automatic image optimization, lazy loading, and responsive image generation.
+
+### ⚙️ 99.2 Updating code/theory according the context:
+
+**Summary**
+This section demonstrates how to create and integrate a custom reusable component (`MainHeader`) into a Next.js layout. The process involves creating a dedicated component file that encapsulates header functionality (logo, branding, navigation), then importing and rendering it within the root layout. This pattern allows the header to persist across all pages while keeping the layout code clean and maintainable. The lesson also covers Next.js image import patterns and how to properly reference imported images.
+
+#### 99.2.1 Adding `main-header.js` file:
+
+**Subsection Summary**
+Creates a new reusable header component (`MainHeader`) that encapsulates the application's header structure, including the logo, branding text, and main navigation links. The component uses Next.js `Link` components for client-side navigation and demonstrates the pattern of importing static images from the assets folder. The component is designed to be imported and used in layouts, making it available across all pages.
+```tsx
+/* app/components/main-header.js */
+import Link from "next/link";
+import logoImg from '@/assets/logo.png';
+
+export default function MainHeader(){
+  return <header>
+    <Link href="/">
+      <img src={logoImg.src} alt="A plate with food on it" />
+      NextLevel Food
+    </Link>
+    <nav>
+      <li>
+        <Link href="/meals">Browse Meals</Link>
+      </li>
+      <li>
+        <Link href="/community">Foodies Community</Link>
+      </li>
+    </nav>
+  </header>
+}
+```
+
+* Why `logoImg.src`?
+
+When importing images in Next.js using `import logoImg from '@/assets/logo.png'`, Next.js returns an object (not a string URL) that contains optimized image metadata. The `src` property contains the actual URL path to the optimized image that Next.js generates. This enables automatic image optimization, lazy loading, and responsive image generation. Using `logoImg.src` instead of a direct string path ensures you're using Next.js's optimized image handling.
+
+```js
+{
+  src: "/_next/static/media/logo.abc123.png",
+  height: 200,
+  width: 200,
+  blurDataURL: "data:image/..."
+}
+```
+
+#### 99.2.2 Adding the `main-header.js` reference in `layout.js` file:
+
+**Subsection Summary**
+Integrates the `MainHeader` component into the root layout by importing it and rendering it within the layout's JSX structure. This makes the header component visible on every page of the application since the root layout wraps all routes. The component is placed after the decorative SVG background and before the `{children}` prop, ensuring it appears at the top of every page while maintaining the layout hierarchy.
+```tsx
+/* app/layout.js */
+import './globals.css';
+import MainHeader from './components/main-header';    // 👈🏽 ✅
+
+export const metadata = {
+  title: 'NextLevel Food',
+  description: 'Delicious meals, shared by a food-loving community.',
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        <div className="header-background">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop
+                  offset="0%"
+                  style={{ stopColor: '#59453c', stopOpacity: '1' }}
+                />
+                <stop
+                  offset="100%"
+                  style={{ stopColor: '#8f3a09', stopOpacity: '1' }}
+                />
+              </linearGradient>
+            </defs>
+            <path
+              fill="url(#gradient)"
+              d="M0,256L48,240C96,224,192,192,288,181.3C384,171,480,181,576,186.7C672,192,768,192,864,181.3C960,171,1056,149,1152,133.3C1248,117,1344,107,1392,101.3L1440,96L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z"
+            ></path>
+          </svg>
+        </div>
+        <MainHeader />    {/* 👈🏽 ✅ */}
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+![app vision](../img/section03-lecture099-001.png)
+
+### 🐞 99.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Invalid HTML Structure in Navigation | ⚠️ Identified | In `app/components/main-header.js` (lines 10-17), `<li>` elements are used directly inside `<nav>` without a parent `<ul>` or `<ol>` element. This violates HTML semantics and accessibility standards. Navigation lists should be wrapped in a proper list container. |
+| Missing Styling and CSS Classes | ⚠️ Identified | The `MainHeader` component (`app/components/main-header.js`) has no CSS classes or styling applied. The header, logo link, and navigation elements lack visual styling and layout structure, making them appear unstyled in the browser. |
+| Accessibility Concerns with Logo Link | ⚠️ Identified | The logo link in `app/components/main-header.js` (lines 6-9) wraps both an `<img>` and text content. This can cause accessibility issues with screen readers and keyboard navigation. The link should have proper `aria-label` attributes and the text should be structured more semantically. |
+| Missing Semantic Navigation Structure | ⚠️ Identified | The navigation in `MainHeader` lacks proper semantic structure. The `<nav>` element should contain a `<ul>` wrapping the `<li>` items, and navigation links should have proper accessibility attributes like `aria-label` or `aria-current` for active states. |
+| No Keyboard Navigation Support | ℹ️ Low Priority | The header component doesn't implement keyboard event handlers (`onKeyDown`) for accessibility. While Next.js `Link` components support keyboard navigation by default, custom event handlers could enhance the user experience for keyboard users. |
+| Image Optimization Not Utilized | ℹ️ Low Priority | The component uses `<img>` tag instead of Next.js's optimized `<Image>` component from `next/image`. While `logoImg.src` provides some optimization, using the `Image` component would provide better performance, lazy loading, and responsive image handling. |
+
+### 🧱 99.4 Pending Fixes (TODO)
+
+- [ ] Fix HTML semantics in `MainHeader` component: Wrap `<li>` elements in a `<ul>` container within the `<nav>` element (`app/components/main-header.js`, lines 10-17).
+- [ ] Add TailwindCSS classes or CSS modules to style the `MainHeader` component, including proper layout, spacing, and visual design for the header, logo, and navigation links.
+- [ ] Improve accessibility of the logo link by adding `aria-label` attribute and restructuring the link content to be more semantic (`app/components/main-header.js`, lines 6-9).
+- [ ] Add proper semantic structure to navigation: Ensure `<nav>` contains `<ul>` with `<li>` items, and add `aria-label` to the navigation element for screen readers.
+- [ ] Consider replacing `<img>` with Next.js `<Image>` component from `next/image` for better image optimization, lazy loading, and responsive image handling.
+- [ ] Add keyboard event handlers (`onKeyDown`) to navigation links if custom keyboard navigation behavior is needed beyond default Next.js `Link` functionality.
+- [ ] Add active state styling and `aria-current` attribute to navigation links to indicate the current page for better accessibility and UX.
+
+
+
 ---
 <br>
 <br>
@@ -279,7 +436,7 @@ export default function MealsLayout({ children }){
 
 <br>
 
-## 🔧 XX. Lesson YYY — *{{TITLE_NAME}}*
+## 🔧 XX. Lesson XXX — *{{TITLE_NAME}}*
 
 ### 🧠 XX.1 Context:
 
