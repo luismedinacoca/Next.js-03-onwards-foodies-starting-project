@@ -425,6 +425,194 @@ export default function RootLayout({ children }) {
 - [ ] Add active state styling and `aria-current` attribute to navigation links to indicate the current page for better accessibility and UX.
 
 
+<br>
+
+## 🔧 100. Lesson 100 — *Styling NextJS Project: Your Options & Using CSS Modules*
+
+### 🧠 100.1 Context:
+
+**CSS Modules** are a CSS file format that automatically generates unique class names scoped to a specific component, preventing style conflicts and ensuring styles only apply where intended. In Next.js, CSS Modules are created by naming CSS files with the `.module.css` extension (e.g., `component.module.css`). When imported, they return an object mapping original class names to generated, scoped class names.
+
+**When CSS Modules are used:**
+- **Component-scoped styling**: When you need styles that belong to a specific component and shouldn't leak to other components.
+- **Avoiding naming conflicts**: In large applications where multiple developers might use similar class names like `.button` or `.header`.
+- **Maintainability**: When you want styles co-located with components for easier maintenance and refactoring.
+- **Scoped styling without build tools**: CSS Modules provide scoping out of the box without needing additional CSS-in-JS libraries or complex build configurations.
+
+**Styling options in Next.js:**
+1. **Global CSS** (`globals.css`): Applied globally across the entire application. Best for base styles, resets, typography, and shared utilities.
+2. **CSS Modules** (`.module.css`): Scoped to individual components. Best for component-specific styles that shouldn't affect other parts of the application.
+3. **TailwindCSS**: Utility-first CSS framework. Best for rapid UI development with pre-built utility classes.
+4. **Styled Components / CSS-in-JS**: Runtime CSS-in-JavaScript solutions. Best for dynamic styling based on props or state.
+5. **Sass/SCSS**: CSS preprocessor with variables, nesting, and mixins. Can be used as global CSS or CSS Modules (`.module.scss`).
+
+**Examples from the project:**
+- `app/globals.css`: Global stylesheet imported in the root layout (`app/layout.js`). Contains base styles, font imports, body background, and utility classes like `.not-found` and `.error`.
+- `app/components/main-header.module.css`: CSS Module file scoped to the `MainHeader` component. Contains styles for `.header`, `.logo`, `.nav`, and `.active` classes that only apply to the header component.
+- The `MainHeader` component imports the CSS Module as `classes` and applies scoped class names using `className={classes.header}`, `className={classes.logo}`, etc.
+
+**Advantages:**
+- **Style Encapsulation**: Styles are automatically scoped to the component, preventing unintended style leakage and conflicts.
+- **No Naming Conflicts**: Generated unique class names eliminate the need for BEM or other naming conventions to avoid collisions.
+- **Co-location**: CSS files can be placed next to component files, improving code organization and maintainability.
+- **Standard CSS Syntax**: Uses regular CSS (or SCSS/Sass), making it easy for developers familiar with CSS.
+- **Build-time Optimization**: Next.js automatically optimizes and minifies CSS Modules during the build process.
+- **Type Safety**: When using TypeScript, CSS Modules can provide type definitions for class names.
+
+**Disadvantages:**
+- **No Dynamic Styles**: CSS Modules don't support dynamic styling based on props or state without additional JavaScript logic.
+- **Limited Runtime Flexibility**: Unlike CSS-in-JS solutions, you can't generate styles at runtime based on component props.
+- **Class Name Obfuscation**: Generated class names are hashed (e.g., `header_abc123`), making debugging slightly more difficult.
+- **No Shared Styles**: Each component needs its own CSS Module file, which can lead to code duplication for shared styles (though global CSS can complement this).
+- **Learning Curve**: Developers need to understand the import pattern (`import classes from './file.module.css'`) and how to reference classes.
+
+**When to consider alternatives:**
+- **Global CSS**: Use for base styles, resets, typography, and application-wide utilities that should apply everywhere.
+- **TailwindCSS**: Consider when you want rapid UI development with utility classes and don't need component-scoped styles.
+- **CSS-in-JS (Styled Components)**: Use when you need dynamic styles based on props, state, or theme values that change at runtime.
+- **Sass/SCSS**: Use when you need CSS preprocessor features (variables, nesting, mixins) while maintaining CSS Module scoping (`.module.scss`).
+
+**CSS Module Import Pattern:**
+When importing a CSS Module in Next.js, the import returns an object where keys are the original class names and values are the generated, scoped class names:
+```javascript
+import classes from './main-header.module.css';
+// classes = { header: 'main-header_header_abc123', logo: 'main-header_logo_def456', ... }
+```
+
+### ⚙️ 100.2 Updating code/theory according the context:
+
+**Summary**
+This section demonstrates how to style a Next.js component using CSS Modules. The process involves creating a CSS Module file (`main-header.module.css`) with component-specific styles, then importing and applying those styles to the `MainHeader` component using the `className` prop. This approach provides scoped styling that prevents style conflicts while maintaining clean, maintainable code organization. The lesson covers responsive design with media queries, hover/active states, and proper CSS Module import patterns.
+
+#### 100.2.1 Creating `main-header.module.css` file:
+
+**Subsection Summary**
+Creates a CSS Module file specifically for the `MainHeader` component. The stylesheet defines scoped styles for the header container (flexbox layout with responsive padding), navigation (flex list with gap spacing), navigation links (hover/active states with gradient text effects), logo link (flex layout with typography), and an unused `.active` class for future active state implementation. The CSS includes responsive design via media queries and modern CSS features like `background-clip` for gradient text effects.
+```css
+/* app/components/main-header.module.css */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .header {
+    padding: 2rem 10%;
+  }
+}
+
+.nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 1.5rem;
+  /* font-family: 'Montserrat', sans-serif; */
+  font-size: 1.25rem;
+}
+
+.nav a {
+  text-decoration: none;
+  color: #ddd6cb;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+}
+
+.nav a:hover,
+.nav a:active {
+  background: linear-gradient(90deg, #ff8a05, #f9b331);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 18px rgba(248, 190, 42, 0.8);
+}
+
+.active {
+  background: linear-gradient(90deg, #ff8a05, #f9b331);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  text-decoration: none;
+  color: #ddd6cb;
+  font-weight: bold;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.15rem;
+  text-transform: uppercase;
+  font-size: 1.5rem;
+}
+
+.logo img {
+  width: 5rem;
+  height: 5rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.75rem rgba(0, 0, 0, 0.5));
+}
+```
+
+#### 100.2.2 Importing and using `main-header.module.css` file inside `main-header.js` file:
+
+**Subsection Summary**
+Demonstrates the CSS Module import pattern and application in the React component. The CSS Module is imported as `classes`, which provides an object mapping original class names to scoped, generated class names. These scoped classes are then applied to JSX elements using the `className` prop (`classes.header`, `classes.logo`, `classes.nav`). This ensures that styles from the CSS Module only apply to this component and won't conflict with styles from other components.
+
+```tsx
+/* app/components/main-header.js */
+import Link from "next/link";
+import logoImg from '@/assets/logo.png';
+import classes from './main-header.module.css';   // 👈🏽 ✅
+
+export default function MainHeader(){
+  return <header className={classes.header}>      {/* 👈🏽 ✅ */}
+    <Link className={classes.logo} href="/">      {/* 👈🏽 ✅ */}
+      <img src={logoImg.src} alt="A plate with food on it" />
+      NextLevel Food
+    </Link>
+    <nav className={classes.nav}>      {/* 👈🏽 ✅ */}
+      <ul>
+        <li>
+          <Link href="/meals">Browse Meals</Link>
+        </li>
+        <li>
+          <Link href="/community">Foodies Community</Link>
+        </li>
+      </ul>
+    </nav>
+  </header>
+}
+```
+
+![using module.css for main-header component](../img/section03-lecture100-001.png)
+
+### 🐞 100.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Unused `.active` CSS Class | ⚠️ Identified | The `.active` class is defined in `app/components/main-header.module.css` (lines 41-45) but is never applied to any element in `app/components/main-header.js`. This class appears intended for active navigation state but lacks implementation logic. |
+| Missing Active State Logic | ⚠️ Identified | Navigation links in `MainHeader` component don't have active state detection or styling. The component doesn't check the current route to apply the `.active` class, so users can't visually identify which page they're currently viewing. |
+| Missing Focus States for Accessibility | ⚠️ Identified | Navigation links in `app/components/main-header.module.css` have `:hover` and `:active` states but lack `:focus` states for keyboard navigation. This creates accessibility issues for users navigating with keyboard or screen readers. |
+| Commented Out Font Family | ℹ️ Low Priority | Line 20 in `main-header.module.css` contains a commented-out `font-family: 'Montserrat', sans-serif;` declaration. This suggests uncertainty about typography choices or incomplete styling decisions. |
+| No Mobile Navigation Handling | ℹ️ Low Priority | The CSS Module includes responsive padding via media queries but doesn't address mobile navigation patterns (e.g., hamburger menu, collapsible navigation). The navigation may overflow or become cramped on small screens. |
+| Missing Link Styling in Navigation | ℹ️ Low Priority | Navigation links (`<Link>` components) inside `<li>` elements don't have explicit CSS classes applied. They inherit styles from `.nav a` selector, but this creates tight coupling between CSS structure and HTML structure, making it harder to style links differently if needed. |
+
+### 🧱 100.4 Pending Fixes (TODO)
+
+- [ ] Implement active state logic in `MainHeader` component: Use Next.js `usePathname()` hook (requires `'use client'`) or compare `href` prop with current route to conditionally apply `classes.active` to navigation links (`app/components/main-header.js`).
+- [ ] Add `:focus` pseudo-class styles to `.nav a` selector in `main-header.module.css` for keyboard navigation accessibility. Include visible focus indicators (e.g., outline or box-shadow) that meet WCAG accessibility standards.
+- [ ] Remove unused `.active` class from CSS Module or implement its usage. If keeping it, ensure it's properly applied via JavaScript logic; otherwise, remove it to reduce dead code.
+- [ ] Resolve commented-out font-family declaration: Either uncomment and use it if intended, or remove the comment if the font choice is finalized. Consider if Montserrat should be applied to navigation or if Quicksand (from globals.css) is sufficient.
+- [ ] Add mobile-responsive navigation: Implement a hamburger menu or collapsible navigation for small screens. This may require converting `MainHeader` to a Client Component and adding state management for mobile menu visibility.
+- [ ] Consider adding explicit CSS classes to navigation `<Link>` components if more granular styling control is needed, or document that `.nav a` selector is intentionally used for all navigation links.
+- [ ] Add `aria-current="page"` attribute to active navigation links for better screen reader support when active state logic is implemented.
+
 
 ---
 <br>
