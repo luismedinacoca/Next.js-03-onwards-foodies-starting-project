@@ -1197,6 +1197,213 @@ export default function Home() {
 
 
 
+<br>
+
+## 🔧 104. Lesson 104 — *Preparing an Image Slideshow*
+
+### 🧠 104.1 Context:
+
+An **Image Slideshow** in Next.js is a dynamic UI component that cycles through a set of images. It is commonly used in landing pages or hero sections to showcase multiple visual assets without taking up excessive vertical space. Implementing a slideshow often involves state management (to track the current image) and side effects (to handle the automatic rotation).
+
+**When to use:**
+- **Hero Sections**: To create an engaging and visually rich entry point for the application.
+- **Product Showcases**: To display multiple views of a product or a gallery of items.
+- **Dynamic Portfolios**: To highlight various projects or features.
+
+**Advantages:**
+- **Visual Engagement**: Movement catches the eye and keeps users interested.
+- **Information Density**: Allows displaying multiple pieces of content in a single container.
+- **Controlled Pacing**: Automatic transitions can guide the user's attention through important assets.
+
+**Disadvantages:**
+- **Performance Overhead**: Requires loading multiple images, which can impact LCP if not properly optimized with `next/image`.
+- **User Control**: Automatic slideshows can sometimes be annoying if transitions are too fast or if no manual controls are provided.
+- **Complexity**: Managing transitions, timers, and cleanups requires careful implementation of React hooks.
+
+**When to consider alternatives:**
+- **Static Hero Image**: If the application's core message can be conveyed with a single powerful image, a static hero is often better for performance and user focus.
+- **Interactive Carousel**: If users need to browse at their own pace, a carousel with manual navigation (arrows, dots) is preferred over a purely automatic slideshow.
+
+**Implementation with `setInterval`**:
+In React, an automatic slideshow is typically implemented using `setInterval` within a `useEffect` hook. This ensures the timer starts when the component mounts and is cleaned up when it unmounts, preventing memory leaks and unexpected behavior.
+
+### ⚙️ 104.2 Updating code/theory according the context:
+
+**Summary**
+This section documents the implementation of an automated `ImageSlideshow` component. It covers the creation of the React component using `useEffect` and `useState` for image rotation, the application of sophisticated CSS transitions for smooth visual effects, and the integration of the slideshow into the application's landing page. Finally, it addresses the common "use client" error that occurs when using browser-only hooks in Server Components.
+
+#### 104.2.1 Create `components/images/image-slideshow.js` file:
+
+**Subsection Summary**
+Defines the `ImageSlideshow` component logic. It manages an internal state `currentImageIndex` and uses a `useEffect` hook to set up a 5-second interval timer that cycles through a predefined array of imported images. Each image is rendered using the Next.js `Image` component.
+```tsx
+/* app/components/images/image-slideshow.js */
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+
+import burgerImg from '@/assets/burger.jpg';
+import curryImg from '@/assets/curry.jpg';
+import dumplingsImg from '@/assets/dumplings.jpg';
+import macncheeseImg from '@/assets/macncheese.jpg';
+import pizzaImg from '@/assets/pizza.jpg';
+import schnitzelImg from '@/assets/schnitzel.jpg';
+import tomatoSaladImg from '@/assets/tomato-salad.jpg';
+import classes from './image-slideshow.module.css';
+
+const images = [
+  { image: burgerImg, alt: 'A delicious, juicy burger' },
+  { image: curryImg, alt: 'A delicious, spicy curry' },
+  { image: dumplingsImg, alt: 'Steamed dumplings' },
+  { image: macncheeseImg, alt: 'Mac and cheese' },
+  { image: pizzaImg, alt: 'A delicious pizza' },
+  { image: schnitzelImg, alt: 'A delicious schnitzel' },
+  { image: tomatoSaladImg, alt: 'A delicious tomato salad' },
+];
+
+export default function ImageSlideshow() {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) =>
+        prevIndex < images.length - 1 ? prevIndex + 1 : 0
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className={classes.slideshow}>
+      {images.map((image, index) => (
+        <Image
+          key={index}
+          src={image.image}
+          className={index === currentImageIndex ? classes.active : ''}
+          alt={image.alt}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+#### 104.2.2 create its `module.css` file:
+
+**Subsection Summary**
+Implements the visual styling and animation logic for the slideshow. It uses `position: absolute` to stack images and combines `opacity` with `transform` (scale and rotation) to create a smooth, sophisticated transition effect when the `.active` class is applied.
+```tsx
+/* app/components/images/image-slideshow.module.css */
+.slideshow {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.5);
+}
+
+.slideshow img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  transform: scale(1.1) translateX(-1rem) rotate(-5deg);
+  transition: all 0.5s ease-in-out;
+}
+
+.slideshow .active {
+  z-index: 1;
+  opacity: 1;
+  transform: scale(1) translateX(0) rotate(0);
+}
+```
+
+
+#### 104.2.3 Import `image-slideshow.js` file in `page.js`
+
+**Subsection Summary**
+Integrates the `ImageSlideshow` component into the landing page's hero section. It replaces the previous placeholder with the dynamic slideshow, enhancing the visual appeal of the home page.
+```tsx
+/* app/page.js */
+import Link from "next/link";
+import classes from "./page.module.css";
+
+import ImageSlideshow from "./components/images/image-slideshow"; // 👈🏽 ✅
+
+export default function Home() {
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.slideshow}>
+          <ImageSlideshow />    {/* 👈🏽 ✅ */}
+        </div>
+
+        <div>
+          <div className={classes.hero}>
+            <h1>NextLevel Food for NextLevel Foodies</h1>
+            <p>Tasrw & share food from all over the world</p>
+          </div>
+
+          <div className={classes.cta}>
+            <Link href="/community">Join the Community</Link>
+            <Link href="/meals">Explore Meals</Link>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section className={classes.section}>
+          <h2>How it works</h2>
+          <p>
+            NextLevel Food is a platform for foodies to share their favorite recipes with the world. It&apos;s a place to
+            discover new dishes, and to connect with other food lovers.
+          </p>
+          <p>NextLevel Food is a place to discover new dishes, and to connect with other food lovers.</p>
+        </section>
+
+        <section className={classes.section}>
+          <h2>Why NextLevel Food?</h2>
+          <p>
+            NextLevel Food is a platform for foodies to share their favorite recipes with the world. It&apos;s a place to
+            discover new dishes, and to connect with other food lovers.
+          </p>
+          <p>NextLevel Food is a place to discover new dishes, and to connect with other food lovers.</p>
+        </section>
+      </main>
+    </>
+  );
+}
+```
+
+#### 104.2.4. App crashes:
+
+**Subsection Summary**
+Identifies a critical error where the application crashes because `ImageSlideshow` uses React hooks (`useState`, `useEffect`) but is rendered as a Server Component. This serves as a practical example of when the `"use client"` directive is required.
+
+!["use client" issue](../img/section03-lecture104-001.png)
+
+
+### 🐞 104.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Missing "use client" Directive | ⚠️ Identified | The `ImageSlideshow` component uses `useState` and `useEffect`, which are Client-only features. Without the `"use client"` directive at the top of the file, Next.js throws an error when trying to render the component. |
+| Potential Memory Leaks | ✅ Fixed | The `useEffect` hook in `ImageSlideshow` correctly returns a cleanup function that calls `clearInterval(interval)`, preventing multiple timers from running if the component re-renders or unmounts. |
+| Lack of Manual Controls | ⚠️ Identified | The slideshow is purely automatic. Users cannot manually skip images or pause the rotation, which can be an accessibility and UX issue. |
+| Inaccessible Images in Map | ℹ️ Low Priority | While `alt` text is provided, the slideshow doesn't use `aria-live` or other roles to inform screen readers when the image changes automatically. |
+
+### 🧱 104.4 Pending Fixes (TODO)
+
+- [ ] Add the `"use client"` directive at the top of `app/components/images/image-slideshow.js` to resolve the runtime crash.
+- [ ] Implement manual navigation (Previous/Next buttons or indicator dots) to improve user control.
+- [ ] Add `aria-live="polite"` or similar accessibility attributes to the slideshow container.
+- [ ] Consider adding a "Pause on Hover" feature to the slideshow interval logic.
+
+
 ---
 <br>
 <br>
