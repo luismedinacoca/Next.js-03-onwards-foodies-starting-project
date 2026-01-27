@@ -614,6 +614,156 @@ export default function MainHeader(){
 - [ ] Add `aria-current="page"` attribute to active navigation links for better screen reader support when active state logic is implemented.
 
 
+
+<br>
+
+## 🔧 101. Lesson 101 — *Optimizing Images with the NextJS Image Component*
+
+### 🧠 101.1 Context:
+
+The **Next.js Image component** (`next/image`) is an extension of the HTML `<img>` element, evolved for the modern web. It includes various built-in performance optimizations to help you achieve good Core Web Vitals. These scores are a key measurement of user experience on your website, and are factored into Google's search rankings.
+
+**When to use:**
+- Always use `<Image>` instead of standard `<img>` tags for UI elements and content images within a Next.js application.
+- Use the `priority` prop for any image that is the Largest Contentful Paint (LCP) element or visible "above the fold" to ensure it preloads.
+
+**Examples from the project:**
+- `app/components/main-header.js`: The application logo is implemented using the `<Image>` component. Since it is part of the header and always visible at the top of the page, the `priority` prop is applied to optimize initial load and remove browser warnings.
+
+**Advantages:**
+- **Improved Performance:** Automatically serves correctly sized images for each device using modern formats like WebP and AVIF.
+- **Visual Stability:** Automatically prevents Layout Shift (CLS) by requiring dimensions or using `fill` mode.
+- **Faster Page Loads:** Images are lazy-loaded by default as they enter the viewport, reducing initial load weight.
+- **Asset Flexibility:** Features on-demand image resizing, even for images hosted on remote servers.
+
+**Disadvantages:**
+- **Complexity with Remote Images:** Requires explicit domain/pattern configuration in `next.config.js` for external sources.
+- **Strict Sizing:** Requires developers to be more explicit about image dimensions compared to standard `<img>` tags.
+
+**Alternatives:**
+- Standard `<img>` tag: Useful for cases where you need absolute control over the element without Next.js interventions, or for non-web environments (like generated emails).
+- External Optimization Services: Services like Cloudinary or Imgix if you prefer to offload optimization entirely from the Next.js server.
+
+
+### ⚙️ 101.2 Updating code/theory according the context:
+
+**Summary**
+This section demonstrates the transition from standard HTML `<img>` tags to the optimized Next.js `<Image>` component. It focuses on implementing this change in the `MainHeader` component for the application logo. The lesson covers importing the component, updating the JSX structure, and resolving performance warnings by utilizing the `priority` attribute for critical above-the-fold content.
+
+Previous the changing:
+![without using the Image next component](../img/section03-lecture101-001.png)
+
+> Attributes:
+* src
+* alt
+
+#### 101.2.1 Upgrade the logo from `<img>` to `<Image>`:
+
+**Subsection Summary**
+Replaces the standard `<img>` tag with the Next.js `<Image>` component in the `MainHeader`. This update enables automatic image optimization, properly sized assets, and prevents layout shifts, ensuring a more stable and faster user experience.
+```tsx
+/* app/components/main-header.js */
+import Link from "next/link";
+import Image from "next/image";   // 👈🏽 ✅
+
+import logoImg from '@/assets/logo.png';
+import classes from './main-header.module.css';
+
+export default function MainHeader(){
+  return <header className={classes.header}>
+    <Link className={classes.logo} href="/">
+      <Image src={logoImg} alt="A plate with food on it" />   {/* 👈🏽 ✅ */}
+      NextLevel Food
+    </Link>
+    <nav className={classes.nav}>
+      <ul>
+        <li>
+          <Link href="/meals">Browse Meals</Link>
+        </li>
+        <li>
+          <Link href="/community">Foodies Community</Link>
+        </li>
+      </ul>
+    </nav>
+  </header>
+}
+```
+
+![using Image next component](../img/section03-lecture101-002.png)
+
+> Attributes:
+* alt
+* fetchPriority
+* width
+* height
+* decoding
+* data-nimg
+* style
+* srcset
+* src
+
+#### 101.2.2 Adding `priority` to `<Image>` next component:
+
+**Subsection Summary**
+Applies the `priority` attribute to the logo image. This instructs the browser to preload the image as it's identified as a critical asset for the initial page render (above the fold), effectively improving the LCP (Largest Contentful Paint) metric.
+
+Due to this issue:
+
+![priority issue in Image next component](../img/section03-lecture101-003.png)
+
+```tsx
+/* app/components/main-header.js */
+import Link from "next/link";
+import Image from "next/image";
+
+import logoImg from '@/assets/logo.png';
+import classes from './main-header.module.css';
+
+export default function MainHeader(){
+  return <header className={classes.header}>
+    <Link className={classes.logo} href="/">
+      <Image src={logoImg} alt="A plate with food on it" priority/>  {/* 👈🏽 ✅ */}
+      NextLevel Food
+    </Link>
+    <nav className={classes.nav}>
+      <ul>
+        <li>
+          <Link href="/meals">Browse Meals</Link>
+        </li>
+        <li>
+          <Link href="/community">Foodies Community</Link>
+        </li>
+      </ul>
+    </nav>
+  </header>
+}
+```
+
+
+#### 101.2.3 Benefits using `<Image>` next built-in component:
+
+**Subsection Summary**
+Highlights the technical benefits of using the Next.js `Image` component over standard tags. Key advantages include automatic WebP conversion, built-in lazy loading for off-screen images, and the generation of multiple `srcset` variants for different screen resolutions.
+
+![benefits - Image next built-in component](../img/section03-lecture101-004.png)
+
+### 🐞 101.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Large Favicon Asset | ⚠️ Identified | The `app/icon.png` file is 1.3 MB, which is excessively large for a favicon and can impact build performance and metadata generation. |
+| Inconsistent Alt Text | ⚠️ Identified | There is currently no standardized approach for `alt` text across the application, which could lead to accessibility gaps as more images are added. |
+| Remote Image Limitation | ℹ️ Low Priority | Future images fetched from external databases will require specific configuration in `next.config.js` to work with the `<Image>` component. |
+
+### 🧱 101.4 Pending Fixes (TODO)
+
+- [ ] Optimize `app/icon.png` to a standard favicon size (e.g., 32x32 or 512x512) and reduce file size.
+- [ ] Create a reusable `MealImage` component that handles consistent `alt` text and placeholder logic for meal listings.
+- [ ] Add `remotePatterns` to `next.config.js` once external image sources are identified.
+- [ ] Audit `app/meals/page.js` and `app/community/page.js` to ensure standard `<img>` tags aren't introduced as those pages are built out.
+
+
+
 ---
 <br>
 <br>
@@ -624,31 +774,31 @@ export default function MainHeader(){
 
 <br>
 
-## 🔧 XX. Lesson XXX — *{{TITLE_NAME}}*
+## 🔧 XXX. Lesson XXX — *{{TITLE_NAME}}*
 
-### 🧠 XX.1 Context:
+### 🧠 XXX.1 Context:
 
 
-### ⚙️ XX.2 Updating code/theory according the context:
+### ⚙️ XXX.2 Updating code/theory according the context:
 
-#### XX.2.1
+#### XXX.2.1
 ```tsx
 /*  */
 
 ```
 
-#### XX.2.2
+#### XXX.2.2
 ```tsx
 /*  */
 
 ```
 
-### 🐞 XX.3 Issues:
+### 🐞 XXX.3 Issues:
 - **first issue**: something..
 
 | Issue | Status | Log/Error |
 |---|---|---|
 
-### 🧱 XX.4 Pending Fixes (TODO)
+### 🧱 XXX.4 Pending Fixes (TODO)
 
 - [ ]
