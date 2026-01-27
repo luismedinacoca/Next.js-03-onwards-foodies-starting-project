@@ -997,6 +997,205 @@ app
 - [ ] Audit `app/globals.css` to ensure no leftover styles from the SVG background remain now that they are in a CSS Module.
 - [ ] Add `aria-hidden="true"` to the SVG in `MainHeaderBackground` as it is purely decorative.
 
+<br>
+
+## 🔧 103. Lesson 103 — *Populating The Starting Page Content*
+
+Next.js applications often require a dedicated **Home/Landing page** that serves as the entry point for users. This page typically includes a "Hero" section with a call to action (CTA) and descriptive sections explaining the application's value proposition.
+
+**When to use:**
+- To provide a high-level overview of the application.
+- To guide users toward primary features (e.g., "Browse Meals", "Join Community").
+- To establish the brand identity using gradients, typography, and visual assets.
+
+**Advantages:**
+- **Centralized Entry Point**: Consolidates the most important links and information.
+- **Improved UX**: Clear CTAs help users understand what to do next.
+- **SEO Optimization**: Landing pages are primary targets for search engines; proper headers and descriptions improve ranking.
+- **Visual Appeal**: Using CSS Modules allows for complex, scoped designs without affecting other pages.
+
+**Disadvantages:**
+- **Content Maintenance**: Landing pages often require frequent updates to keep information fresh.
+- **Performance Risks**: Large hero sections or slideshows can impact LCP (Largest Contentful Paint) if not optimized.
+
+**Alternatives:**
+- Using a redirect to a dashboard if the application is for logged-in users only.
+- A minimal landing page if the product is simple and doesn't need extensive explanation.
+### ⚙️ 103.2 Updating code/theory according the context:
+
+**Summary**
+This section focuses on populating the application's landing page (`app/page.js`) with structured content and custom styles. It involves creating a layout with a hero section, a slideshow placeholder, and informative sections for users. The styling is managed through a dedicated CSS Module (`app/page.module.css`), ensuring that the landing page's unique design (like gradients and specific layouts) remains isolated from the rest of the application.
+
+#### 103.2.1 Update `page.js` file:
+
+**Subsection Summary**
+Initializes the structure of the Home component using semantic HTML elements like `<header>` and `<main>`. It sets the foundation for a two-part layout: an introductory top section and a descriptive bottom section.
+```tsx
+/* app/page.js */
+export default function Home() {
+  return (
+    <>
+      <header></header>
+      <main></main>
+    </>
+  );
+}
+```
+
+#### 103.2.2 Create `page.module.css` file:
+
+**Subsection Summary**
+Defines the visual design for the landing page. It includes sophisticated CSS patterns such as flexbox for layout, linear gradients for text and buttons, and hover effects for interactivity. The styles are scoped to the page to prevent global conflicts.
+```css
+/* app/page.module.css */
+.header {
+  display: flex;
+  gap: 3rem;
+  margin: 3rem auto;
+  width: 90%;
+  max-width: 75rem;
+}
+
+.slideshow {
+  width: 40rem;
+  height: 25rem;
+}
+
+.hero {
+  color: #ddd6cb;
+  font-size: 1.5rem;
+}
+
+.hero h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.15rem;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #f9572a, #ffc905);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cta {
+  font-size: 1.5rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.cta a {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #f9572a, #ff9b05);
+  color: #ffffff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.cta a:hover,
+.cta a:active {
+  background: linear-gradient(90deg, #fd4715, #f9b241);
+}
+
+.cta a:first-child {
+  background: transparent;
+  font-weight: normal;
+  color: #ff9b05;
+  padding-left: 0;
+}
+
+.cta a:first-child:hover,
+.cta a:first-child:active {
+  background: transparent;
+  color: #f9b241;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  color: #ddd6cb;
+  font-size: 1.5rem;
+  max-width: 50rem;
+  width: 90%;
+  margin: 2rem auto;
+  text-align: center;
+}
+```
+
+#### 103.2.3 Import `page.module.css` in `page.js` file:
+
+**Subsection Summary**
+Integrates the styles into the Home component and populates it with links and text. It uses Next.js `Link` for efficient client-side navigation to the meals and community routes.
+```tsx
+/* app/page.js */
+import Link from "next/link";
+import classes from "./page.module.css";    // 👈🏽 ✅
+export default function Home() {
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.slideshow}>....</div>
+
+        <div>
+          <div className={classes.hero}>
+            <h1>NextLevel Food for NextLevel Foodies</h1>
+            <p>Tasrw & share food from all over the world</p>
+          </div>
+
+          <div className={classes.cta}>
+            <Link href="/community">Join the Community</Link>
+            <Link href="/meals">Explore Meals</Link>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section className={classes.section}>
+          <h2>How it works</h2>
+          <p>
+            NextLevel Food is a platform for foodies to share their favorite recipes with the world. It&apos;s a place to
+            discover new dishes, and to connect with other food lovers.
+          </p>
+          <p>NextLevel Food is a place to discover new dishes, and to connect with other food lovers.</p>
+        </section>
+
+        <section className={classes.section}>
+          <h2>Why NextLevel Food?</h2>
+          <p>
+            NextLevel Food is a platform for foodies to share their favorite recipes with the world. It&apos;s a place to
+            discover new dishes, and to connect with other food lovers.
+          </p>
+          <p>NextLevel Food is a place to discover new dishes, and to connect with other food lovers.</p>
+        </section>
+      </main>
+    </>
+  );
+}
+```
+
+![](../img/section03-lecture103-001.png)
+
+### 🐞 103.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Typo in Hero Description | ⚠️ Identified | In `app/page.js`, the word "Taste" is misspelled as "Tasrw". |
+| Placeholder Slideshow | ⚠️ Identified | The slideshow container in `app/page.js` contains a `....` placeholder instead of actual content or a component. |
+| Redundant Paragraphs | ⚠️ Identified | Both sections in `main` contain duplicate sentences ("NextLevel Food is a place to discover..."), making the content feel repetitive and unpolished. |
+| Hardcoded Text | ℹ️ Low Priority | All landing page content is hardcoded in the component, which may make future internationalization (i18n) or updates more difficult. |
+
+### 🧱 103.4 Pending Fixes (TODO)
+
+- [ ] Correct the typo "Tasrw" to "Taste" in `app/page.js` (line 12).
+- [ ] Remove redundant paragraphs in the descriptive sections of `app/page.js`.
+- [ ] Implement an `ImageSlideshow` component to replace the placeholder `....` in `app/page.js`.
+- [ ] Add `aria-label` to the slideshow container for improved accessibility.
+- [ ] Extract the landing page text into a configuration file or constants to facilitate future updates.
+
+
 
 ---
 <br>
