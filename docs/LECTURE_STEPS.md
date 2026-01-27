@@ -763,6 +763,240 @@ Highlights the technical benefits of using the Next.js `Image` component over st
 - [ ] Audit `app/meals/page.js` and `app/community/page.js` to ensure standard `<img>` tags aren't introduced as those pages are built out.
 
 
+<br>
+
+## 🔧 102. Lesson 102 — *Using More Custom Components*
+
+### 🧠 102.1 Context:
+
+**Custom components** in Next.js allow for modularizing complex UI elements into smaller, manageable pieces. This lesson focuses on refactoring the root layout by extracting a decorative SVG background into its own component and organizing header-related components into a dedicated directory.
+
+**When to use:**
+- **Refactoring**: When a layout or page becomes too cluttered with UI details that aren't core to its primary responsibility.
+- **Organization**: When multiple components are tightly related (e.g., a header and its background) and should be grouped together.
+- **Reusability**: When a UI element (like a specific background) might be needed in other parts of the application.
+
+**Advantages:**
+- **Enhanced Readability**: Layout files stay focused on structure rather than implementational details of specific UI elements.
+- **Easier Maintenance**: Changing the background or header logic only requires visiting specific, small files.
+- **Improved Scoping**: Using CSS Modules for extracted components prevents global style pollution.
+- **Better Developer Experience**: Clear folder structures make it easier to find and manage related code.
+
+**Disadvantages:**
+- **Increased File Count**: Refactoring leads to more files, which can slightly increase complexity if not named and organized properly.
+- **Prop/Style Complexity**: If extracted components need complex state or dynamic styles, managing them might require more boilerplate.
+
+**Alternatives:**
+- **Inline SVG/Styles**: Keep code in the layout if it's extremely simple and unlikely to change or be reused.
+- **Global CSS**: Use global classes for backgrounds if they are truly universal and don't benefit from component scoping.
+
+### ⚙️ 102.2 Updating code/theory according the context:
+
+**Summary**
+This section details the refactoring of the application's header and background structure. The process involves extracting the decorative SVG background from `layout.js` into its own component (`MainHeaderBackground`), applying scoped styling via CSS Modules, and finally organizing all header-related components into a dedicated `main-header` folder for better project structure.
+
+#### 102.2.1 create `main-header-background.js` file:
+
+**Subsection Summary**
+Extracts the complex SVG background markup from the root layout into a standalone functional component. This encapsulates the decorative logic and keeps the main layout file cleaner.
+
+```tsx
+/* app/components/main-header-background.js 👈🏽 ✅ */
+export default function MainHeaderBackground() {
+  return (
+    // This code comes from app/layout.js
+    <div className="header-background">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+        <defs>
+          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style={{ stopColor: "#59453c", stopOpacity: "1" }} />
+            <stop offset="100%" style={{ stopColor: "#8f3a09", stopOpacity: "1" }} />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#gradient)"
+          d="M0,256L48,240C96,224,192,192,288,181.3C384,171,480,181,576,186.7C672,192,768,192,864,181.3C960,171,1056,149,1152,133.3C1248,117,1344,107,1392,101.3L1440,96L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z"
+        ></path>
+      </svg>
+    </div>
+  );
+}
+```
+
+#### 102.2.2 Import `main-header-background.js` component in `layout.js`:
+
+**Subsection Summary**
+Updates the root layout to use the newly created background component. This simplifies the layout's JSX and delegates the background rendering to the specialized component.
+```tsx
+/* app/layout.js */
+import './globals.css';
+import MainHeader from './components/main-header';
+import MainHeaderBackground from './components/main-header-background';   // 👈🏽 ✅
+
+export const metadata = {
+  title: 'NextLevel Food',
+  description: 'Delicious meals, shared by a food-loving community.',
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        <MainHeaderBackground />    {/* 👈🏽 ✅ */}
+        <MainHeader />
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+#### 102.2.3 Create a `module.css` for `main-header-background.js` component
+
+**Subsection Summary**
+Implements scoped styling for the background component using CSS Modules. This ensures that the background's absolute positioning and sizing don't interfere with other layout elements.
+```tsx
+/* app/components/main-header-background.module.css */
+.header-background {
+  position: absolute;
+  width: 100%;
+  height: 320px;
+  top: 0;
+  left: 0;
+  z-index: -1;
+}
+
+.header-background svg {    // 👈🏽 ✅
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+// this code comes from app/globals.css 👈🏽 ✅
+```
+
+#### 102.2.4 update `main-header-background.js` component, importing its `module.css` file:
+
+**Subsection Summary**
+Integrates the CSS Module into the background component. It demonstrates how to reference class names with hyphens using bracket notation (`classes["header-background"]`).
+```tsx
+/* app/components/main-header-background.js */
+import classes from "./main-header-background.module.css";    // 👈🏽 ✅
+
+export default function MainHeaderBackground() {
+  return (
+    <div className={classes["header-background"]}>    {/* 👈🏽 ✅ */}
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+        <defs>
+          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style={{ stopColor: "#59453c", stopOpacity: "1" }} />
+            <stop offset="100%" style={{ stopColor: "#8f3a09", stopOpacity: "1" }} />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#gradient)"
+          d="M0,256L48,240C96,224,192,192,288,181.3C384,171,480,181,576,186.7C672,192,768,192,864,181.3C960,171,1056,149,1152,133.3C1248,117,1344,107,1392,101.3L1440,96L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,48,0L0,0Z"
+        ></path>
+      </svg>
+    </div>
+  );
+}
+```
+
+#### 102.2.5 Import `main-header-background.js` component in `main-header.js` instead:
+
+**Subsection Summary**
+Further refines the architecture by moving the background component into the `MainHeader`. This makes sense semantically as the background is visually tied to the header, further simplifying the root layout.
+```tsx
+/* app/components/main-header.js */
+import Link from "next/link";
+import Image from "next/image";
+import MainHeaderBackground from "./main-header-background";    // 👈🏽 ✅
+
+import logoImg from "@/assets/logo.png";
+import classes from "./main-header.module.css";
+
+export default function MainHeader() {
+  return (
+    <>
+      <MainHeaderBackground />    {/* 👈🏽 ✅ */}
+      <header className={classes.header}>
+        <Link className={classes.logo} href="/">
+          <Image src={logoImg} alt="A plate with food on it" priority />
+          NextLevel Food
+        </Link>
+        <nav className={classes.nav}>
+          <ul>
+            <li>
+              <Link href="/meals">Browse Meals</Link>
+            </li>
+            <li>
+              <Link href="/community">Foodies Community</Link>
+            </li>
+          </ul>
+        </nav>
+      </header>
+    </>
+  );
+}
+```
+
+meanwhile:
+
+```tsx
+/* app/layout.js */
+import './globals.css';
+import MainHeader from './components/main-header';
+//import MainHeaderBackground from './components/main-header-background';   // 👈🏽 ✅
+
+export const metadata = {
+  title: 'NextLevel Food',
+  description: 'Delicious meals, shared by a food-loving community.',
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        {/* <MainHeaderBackground /> 👈🏽 ✅ */}
+        <MainHeader />
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+#### 102.2.6 Create a new folder by `main.header`
+
+**Subsection Summary**
+Finalizes the project organization by grouping all header-related files (background, styles, and the main header component) into a single folder. This follows the best practice of co-locating related files.
+
+```
+app
+├-- components
+|    └-- main-header/
+|         ├-- main-header.js
+|         ├-- main-header.module.css
+|         ├-- main-header-background.js
+|         └-- main-header-background.module.css
+....
+```
+
+
+### 🐞 102.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Orphaned Imports in `layout.js` | ⚠️ Identified | After moving `MainHeaderBackground` to `MainHeader`, the imports and commented-out code in `app/layout.js` (lines 3 and 14) are no longer needed and should be removed. |
+| Inconsistent CSS Selectors | ℹ️ Low Priority | `main-header-background.module.css` uses both a class selector and a nested tag selector (`.header-background svg`). While functional, it's slightly inconsistent with the pure class-based approach used elsewhere. |
+
+### 🧱 102.4 Pending Fixes (TODO)
+
+- [ ] Clean up `app/layout.js`: Remove the unused import of `MainHeaderBackground` and the commented-out component call.
+- [ ] Audit `app/globals.css` to ensure no leftover styles from the SVG background remain now that they are in a CSS Module.
+- [ ] Add `aria-hidden="true"` to the SVG in `MainHeaderBackground` as it is purely decorative.
+
 
 ---
 <br>
