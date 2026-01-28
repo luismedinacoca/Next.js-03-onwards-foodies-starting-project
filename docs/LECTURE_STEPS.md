@@ -1404,6 +1404,211 @@ Identifies a critical error where the application crashes because `ImageSlidesho
 - [ ] Consider adding a "Pause on Hover" feature to the slideshow interval logic.
 
 
+
+<br>
+
+## 🔧 105. Lesson 105 — *React Server Components vs Client Components - When To Use What*
+
+### 🧠 105.1 Context:
+
+**React Server Components (RSC)** are a new type of component in Next.js that render exclusively on the server. By default, all components in the Next.js App Router are Server Components. **Client Components**, on the other hand, are opted into using the `'use client'` directive and are rendered on the client (browser), although they are also pre-rendered on the server for initial load.
+
+#### When and Why to use:
+- **Server Components (Default)**: Used for the majority of the application. They are ideal for data fetching directly from the database or file system, keeping sensitive information (like API keys) secure on the server, and reducing the bundle size sent to the client.
+- **Client Components**: Used only when interactivity is required. This includes using React hooks (`useState`, `useEffect`), browser-only APIs (like `localStorage` or `geolocation`), or event listeners (like `onClick`).
+
+#### Examples from the project:
+- `app/page.js`: A Server Component that renders the landing page structure.
+- `app/components/images/image-slideshow.js`: A Client Component (marked with `'use client'`) because it uses `useState` and `useEffect` to manage the automatic image rotation.
+
+#### Advantages & Disadvantages:
+| Component Type | Advantages | Disadvantages |
+| :--- | :--- | :--- |
+| **Server** | Zero bundle size impact, direct backend access, better SEO/LCP. | No interactivity, no hooks, no browser APIs. |
+| **Client** | Full interactivity, access to browser APIs, state management. | Larger bundle size, potentially slower initial TTI (Time to Interactive). |
+
+#### Alternatives:
+- If a component needs minimal interactivity, consider moving that interactivity to a smaller, nested Client Component while keeping the parent as a Server Component. This "leaf component" strategy minimizes the amount of JavaScript sent to the client.
+
+
+### 105.2 Updating code/theory according the context:
+
+**Summary**
+This section explores the practical differences between Server and Client Components by experimenting with `console.log` behavior and fixing runtime errors. It demonstrates that Server Components execute on the server (logs appear in the terminal), while Client Components execute in the browser (logs appear in the DevTools console). The lesson also reinforces when to use the `'use client'` directive to enable React hooks.
+
+#### 105.2.1 Comment `Imageslideshow` component and add a `console.log()` in `main-header.js` file:
+
+**Subsection Summary**
+Demonstrates the execution environment of Server Components. By adding a `console.log` to `MainHeader` (a Server Component), we observe that the output appears in the server terminal, not the browser console. This confirms that the code is executing on the server side during the rendering process.
+```tsx
+/* app/page.js */
+import Link from "next/link";
+import classes from "./page.module.css";
+//import ImageSlideshow from "./components/images/image-slideshow";   // 👈🏽 ✅
+export default function Home() {
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.slideshow}>
+          {/* <ImageSlideshow /> */}    {/* 👈🏽 ✅ */}
+        </div>
+
+        <div>
+          <div className={classes.hero}>
+            <h1>NextLevel Food for NextLevel Foodies</h1>
+            <p>Tasrw & share food from all over the world</p>
+          </div>
+
+          <div className={classes.cta}>
+            <Link href="/community">Join the Community</Link>
+            <Link href="/meals">Explore Meals</Link>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section className={classes.section}>
+          <h2>How it works</h2>
+          <p>
+            NextLevel Food is a platform for foodies to share their favorite recipes with the world. It&apos;s a place to
+            discover new dishes, and to connect with other food lovers.
+          </p>
+          <p>NextLevel Food is a place to discover new dishes, and to connect with other food lovers.</p>
+        </section>
+
+        <section className={classes.section}>
+          <h2>Why NextLevel Food?</h2>
+          <p>
+            NextLevel Food is a platform for foodies to share their favorite recipes with the world. It&apos;s a place to
+            discover new dishes, and to connect with other food lovers.
+          </p>
+          <p>NextLevel Food is a place to discover new dishes, and to connect with other food lovers.</p>
+        </section>
+      </main>
+    </>
+  );
+}
+
+```
+
+Meanwhile:
+```tsx
+/* app/components/main-header/main-header.js */
+import Link from "next/link";
+import Image from "next/image";
+import MainHeaderBackground from "./main-header-background";
+import logoImg from "@/assets/logo.png";
+import classes from "./main-header.module.css";
+export default function MainHeader() {
+  console.log("🛞  Executing MainHeader component...");    // 👈🏽 ✅
+  return (
+    <>
+      <MainHeaderBackground />
+      <header className={classes.header}>
+        <Link className={classes.logo} href="/">
+          <Image src={logoImg} alt="A plate with food on it" priority />
+          NextLevel Food
+        </Link>
+        <nav className={classes.nav}>
+          <ul>
+            <li>
+              <Link href="/meals">Browse Meals</Link>
+            </li>
+            <li>
+              <Link href="/community">Foodies Community</Link>
+            </li>
+          </ul>
+        </nav>
+      </header>
+    </>
+  );
+}
+```
+
+![server component execution vs client component](../img/section03-lecture105-001.png)
+
+> Note:
+
+* Add a console.log("Meals page") in `Meals` component
+* This console.log will be visible from the terminal.
+
+
+#### 105.2.2 Add to `image-slideshow.js` component the `"use client"`:
+
+**Subsection Summary**
+Resolves the runtime crash in the slideshow by explicitly marking it as a Client Component. This allows the component to use the `useState` and `useEffect` hooks, which are essential for its dynamic behavior but unavailable in Server Components.
+```tsx
+/* app/components/images/image-slideshow.js */
+"use client";   // 👈🏽 ✅
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+
+import burgerImg from '@/assets/burger.jpg';
+import curryImg from '@/assets/curry.jpg';
+import dumplingsImg from '@/assets/dumplings.jpg';
+import macncheeseImg from '@/assets/macncheese.jpg';
+import pizzaImg from '@/assets/pizza.jpg';
+import schnitzelImg from '@/assets/schnitzel.jpg';
+import tomatoSaladImg from '@/assets/tomato-salad.jpg';
+import classes from './image-slideshow.module.css';
+
+const images = [
+  { image: burgerImg, alt: 'A delicious, juicy burger' },
+  { image: curryImg, alt: 'A delicious, spicy curry' },
+  { image: dumplingsImg, alt: 'Steamed dumplings' },
+  { image: macncheeseImg, alt: 'Mac and cheese' },
+  { image: pizzaImg, alt: 'A delicious pizza' },
+  { image: schnitzelImg, alt: 'A delicious schnitzel' },
+  { image: tomatoSaladImg, alt: 'A delicious tomato salad' },
+];
+
+export default function ImageSlideshow() {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) =>
+        prevIndex < images.length - 1 ? prevIndex + 1 : 0
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className={classes.slideshow}>
+      {images.map((image, index) => (
+        <Image
+          key={index}
+          src={image.image}
+          className={index === currentImageIndex ? classes.active : ''}
+          alt={image.alt}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+![use client component](../img/section03-lecture105-002.png)
+
+### 🐞 105.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Confusion over execution environment | ✅ Fixed | Initially unclear where `console.log` outputs appear; clarified as terminal for Server Components. |
+| Unnecessary Client Components | ⚠️ Identified | Risk of making parent components "Client" when only a small child needs interactivity. |
+| Performance Overhead | ℹ️ Low Priority | Excessive use of Client Components can increase the JavaScript bundle unnecessarily. |
+
+### 🧱 105.4 Pending Fixes (TODO)
+
+- [ ] Audit all components in `app/components` to ensure they are Server Components unless interactivity is strictly required.
+- [ ] Refactor navigation links to use a small Client Component wrapper if active states (like `usePathname`) are needed, rather than making the entire header a Client Component.
+- [ ] Remove troubleshooting `console.log` statements from `MainHeader` and other components.
+
+
+
+
 ---
 <br>
 <br>
