@@ -1,8 +1,110 @@
+# 👨🏾‍💻 Project: Foodies Next.js App
 
+## 📋 Project Overview
+This project is a modern web application built with **Next.js** to showcase a food-sharing community. It features dynamic routing, server-side data fetching, and high-performance image optimization.
+
+- **What This Project Does**: 
+  - Allows users to browse a collection of meals shared by others.
+  - Enables users to share their own culinary creations.
+  - Provides a dedicated community space for food enthusiasts.
+  - Implements an interactive image slideshow for the landing page.
+- **Technology Stack**: 
+  - **Framework**: Next.js (App Router)
+  - **Language**: JavaScript / React
+  - **Styling**: Vanilla CSS with CSS Modules
+  - **Assets**: Optimized images via `next/image`
+- **Key Components**: 
+  - `MainHeader`: Global navigation and branding.
+  - `NavLink`: Interactive links with active-state detection.
+  - `ImageSlideshow`: Automated, performant hero slideshow.
+  - `MainHeaderBackground`: Decoupled decorative SVG background.
+
+## 📑 Table of Contents
+- [👨🏾‍💻 Project Overview](#-project-overview)
+- [📑 Table of Contents](#-table-of-contents)
+- [📁 Visual Project Tree](#-visual-project-tree)
+- [🧳 Section 03: NextJS Essential (App Router)](#-section-03-nextjs-essential-app-router)
+  - [📚 Lesson 097: Exercise: Task and solution](#-97-lesson-097--exercise-task-and-solution)
+  - [📚 Lesson 098: Revisiting: The Concept Of Layouts](#-98-lesson-098--revisiting-the-concept-of-layouts)
+  - [📚 Lesson 099: Adding a Custom Component To A Layout](#-99-lesson-099--adding-a-custom-component-to-a-layout)
+  - [📚 Lesson 100: Styling NextJS Project: Your Options & Using CSS Modules](#-100-lesson-100--styling-nextjs-project-your-options--using-css-modules)
+  - [📚 Lesson 101: Optimizing Images with the NextJS Image Component](#-101-lesson-101--optimizing-images-with-the-nextjs-image-component)
+  - [📚 Lesson 102: Using More Custom Components](#-102-lesson-102--using-more-custom-components)
+  - [📚 Lesson 103: Populating The Starting Page Content](#-103-lesson-103--populating-the-starting-page-content)
+  - [📚 Lesson 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
+  - [📚 Lesson 105: React Server Components vs Client Components](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
+  - [📚 Lesson 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
+
+## 📁 Visual Project Tree
+```
+03-onwards-foodies-starting-project/
+├── app/
+│   ├── community/
+│   │   ├── page.js                # 📄 Community page displaying social features
+│   │   └── page.module.css        # 📄 Scoped styles for the community page
+│   ├── components/
+│   │   ├── images/
+│   │   │   ├── image-slideshow.js # 📄 Animated slideshow component
+│   │   │   └── image-slideshow.module.css
+│   │   └── main-header/
+│   │       ├── main-header.js     # 📄 Global navigation header
+│   │       ├── main-header.module.css
+│   │       ├── main-header-background.js
+│   │       ├── main-header-background.module.css
+│   │       ├── nav-link.js        # 📄 Individual navigation link component
+│   │       └── nav-link.module.css
+│   ├── meals/
+│   │   ├── [mealSlug]/
+│   │   │   └── page.js            # 📄 Dynamic route for meal details
+│   │   ├── share/
+│   │   │   └── page.js            # 📄 Page for sharing new meals
+│   │   ├── layout.js              # 📄 Layout for meals section
+│   │   └── page.js                # 📄 Main meals listing page
+│   ├── globals.css                # 📄 Global application styles
+│   ├── icon.png                   # 📄 App icon
+│   ├── layout.js                  # 📄 Root application layout
+│   ├── page.js                    # 📄 Landing/Home page
+│   └── page.module.css            # 📄 Styles for the landing page
+├── assets/                        # 📁 Static assets (images, icons)
+├── docs/
+│   └── LECTURE_STEPS.md           # 📄 This educational documentation
+├── img/                           # 📁 Screenshots for documentation
+├── public/                        # 📁 Static assets served directly
+├── jsconfig.json                  # 📄 Path aliases configuration
+├── next.config.js                 # 📄 Next.js configuration
+├── package.json                   # 📄 Project dependencies
+└── README.md                      # 📄 General project information
+```
+
+<br>
+
+## 🧳 Section 03: *NextJS Essential (App Router)*
+
+### 📑 Table of Contents
+- [📚 Lesson 097: Exercise: Task and solution](#-97-lesson-097--exercise-task-and-solution)
+- [📚 Lesson 098: Revisiting: The Concept Of Layouts](#-98-lesson-098--revisiting-the-concept-of-layouts)
+- [📚 Lesson 099: Adding a Custom Component To A Layout](#-99-lesson-099--adding-a-custom-component-to-a-layout)
+- [📚 Lesson 100: Styling NextJS Project: Your Options & Using CSS Modules](#-100-lesson-100--styling-nextjs-project-your-options--using-css-modules)
+- [📚 Lesson 101: Optimizing Images with the NextJS Image Component](#-101-lesson-101--optimizing-images-with-the-nextjs-image-component)
+- [📚 Lesson 102: Using More Custom Components](#-102-lesson-102--using-more-custom-components)
+- [📚 Lesson 103: Populating The Starting Page Content](#-103-lesson-103--populating-the-starting-page-content)
+- [📚 Lesson 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
+- [📚 Lesson 105: React Server Components vs Client Components](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
+- [📚 Lesson 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
 
 <br>
 
 ## 🔧 97. Lesson 097 — *Exercise: Task and solution*
+
+- [Lecture 097: Exercise: Task and solution](#-97-lesson-097--exercise-task-and-solution)
+    - [97.1 Context](#971-context)
+    - [97.2 Updating code according the context](#972-updating-code-according-the-context)
+        - [97.2.1 create `/community` route](#9721-create-community-route)
+        - [97.2.2 create `/meals/[mealSlug]` route](#9722-create-mealsmealslug-route)
+        - [97.2.3 create `/meals/share` route](#9723-create-mealsshare-route)
+        - [97.2.4 Create `/meals` route](#9724-create-meals-route)
+        - [97.2.5 Create `/app` route](#9725-create-app-route)
+    - [97.3 Pending Fixes (TODO)](#973-pending-fixes-todo)
 
 ### 🧠 97.1 Context:
 
@@ -29,7 +131,7 @@ Next.js uses a **file-system based router**, where folders are used to define ro
 - In some scenarios, **Catch-all Routes** (`[...slug]`) or **Optional Catch-all Routes** (`[[...slug]]`) might be more appropriate for highly flexible URL structures.
 
 
-### ⚙️ 97.2 Updating code/theory according the context:
+### ⚙️ 97.2 Updating code according the context:
 
 **Summary**
 This section documents the practical implementation of the application's core routing structure. It covers the creation of static routes for general sections (`/meals`, `/community`), a nested route for a specific feature (`/meals/share`), and a dynamic route for individual meal details (`/meals/[mealSlug]`). Finally, it connects these routes with navigation links on the home page.
@@ -68,6 +170,10 @@ Project Tree:
 
 #### 97.2.1 create `/community` route:
 
+Having this project:
+* [starting project (local)](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/foodies-starting-project.zip)
+
+* [Starting project (CodeSandbox)](https://codesandbox.io/p/devbox/meals-app-starting-project-8vjnw3)
 **Subsection Summary**
 Defines the `/community` static route. This serves as the foundation for the social/collaboration features of the application.
 
@@ -137,26 +243,27 @@ export default function Home() {
 }
 ```
 
-![](../img/section03-lecture097-001.png)
+![Landing Page Linking](../img/section03-lecture097-001.png)
 
-### 🐞 97.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Placeholder Content | ⚠️ Identified | All new route components (`page.js`) currently only contain placeholder `<h1>` elements. |
-| Missing Styling | ⚠️ Identified | Newly created pages lack specific styling beyond global defaults. |
-| Incomplete Dynamic Metadata | ℹ️ Low Priority | Dynamic routes like `[mealSlug]` will need metadata for SEO purposes. |
-
-### 🧱 97.4 Pending Fixes (TODO)
+### 🧱 97.3 Pending Fixes (TODO)
 
 - [ ] Replace placeholder `<h1>` tags with actual functional components and UI for all routes.
 - [ ] Implement data fetching logic for `[mealSlug]` to display real meal details.
 - [ ] Add specific CSS modules or Tailwind classes to new pages.
 - [ ] Configure `generateMetadata` for dynamic routes to improve SEO.
+- [ ] Address **Placeholder Content**: All new route components (`page.js`) currently only contain placeholder `<h1>` elements.
+- [ ] Address **Missing Styling**: Newly created pages lack specific styling beyond global defaults.
+- [ ] Address **Incomplete Dynamic Metadata**: Dynamic routes like `[mealSlug]` will need metadata for SEO purposes.
 
 <br>
 
 ## 🔧 98. Lesson 098 — *Revisiting: The Concept Of Layouts*
+
+- [Lecture 098: Revisiting: The Concept Of Layouts](#-98-lesson-098--revisiting-the-concept-of-layouts)
+    - [98.1 Context](#981-context)
+    - [98.2 Updating code according the context](#982-updating-code-according-the-context)
+        - [98.2.1 Adding a `Layout` in `meals/` folder](#9821-adding-a-layout-in-meals-folder)
+    - [98.3 Pending Fixes (TODO)](#983-pending-fixes-todo)
 
 ### 🧠 98.1 Context:
 
@@ -197,7 +304,7 @@ In this project, the layout hierarchy is:
 
 When visiting `/meals/share`, both layouts render: Root Layout → Meals Layout → ShareMealPage component.
 
-### ⚙️ 98.2 Updating code/theory according the context:
+### ⚙️ 98.2 Updating code according the context:
 
 **Summary**
 This section demonstrates the implementation of nested layouts in Next.js by creating a section-specific layout for the meals routes. The `MealsLayout` component wraps all routes under `/meals`, providing a consistent UI wrapper that persists across navigation between meals-related pages. This showcases how layouts can be nested hierarchically and how they automatically apply to all child routes within their directory.
@@ -250,28 +357,30 @@ export default function MealsLayout({ children }){
 
 ![Meals Layout only](../img/sectio03-lecture098-001.png)
 
-### 🐞 98.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Placeholder Layout Content | ⚠️ Identified | The `MealsLayout` component (`app/meals/layout.js`) only contains a placeholder paragraph tag with an emoji. It lacks meaningful structure, styling, or functional purpose. |
-| Missing Layout Styling | ⚠️ Identified | The layout component has no CSS classes or styling applied. It should integrate with the application's design system (TailwindCSS) for consistent appearance. |
-| No Semantic HTML Structure | ⚠️ Identified | The layout uses a fragment (`<>...</>`) instead of semantic HTML elements like `<main>`, `<section>`, or `<nav>` that would improve accessibility and SEO. |
-| Layout Not Client Component | ℹ️ Low Priority | If the layout needs interactivity in the future (state, event handlers), it will need to be converted to a Client Component with `'use client'` directive. Currently, it's a Server Component, which is fine for static content. |
-
-### 🧱 98.4 Pending Fixes (TODO)
+### 🧱 98.3 Pending Fixes (TODO)
 
 - [ ] Replace placeholder paragraph in `MealsLayout` with meaningful UI structure (e.g., section header, navigation, or breadcrumbs).
 - [ ] Add TailwindCSS classes or CSS modules to style the `MealsLayout` component consistently with the application design.
 - [ ] Wrap layout content in semantic HTML elements (`<main>`, `<section>`, or `<nav>`) instead of fragments for better accessibility.
 - [ ] Consider adding a shared header or navigation component specific to the meals section within the layout.
 - [ ] Add proper spacing and layout structure to ensure child pages render correctly within the layout container.
+- [ ] Address **Placeholder Layout Content**: The `MealsLayout` component (`app/meals/layout.js`) only contains a placeholder paragraph tag with an emoji. It lacks meaningful structure, styling, or functional purpose.
+- [ ] Address **Missing Layout Styling**: The layout component has no CSS classes or styling applied. It should integrate with the application's design system (TailwindCSS) for consistent appearance.
+- [ ] Address **No Semantic HTML Structure**: The layout uses a fragment (`<>...</>`) instead of semantic HTML elements like `<main>`, `<section>`, or `<nav>` that would improve accessibility and SEO.
+- [ ] Address **Layout Not Client Component**: If the layout needs interactivity in the future (state, event handlers), it will need to be converted to a Client Component with `'use client'` directive. Currently, it's a Server Component, which is fine for static content.
 
 
 
 <br>
 
 ## 🔧 99. Lesson 099 — *Adding a Custom Component To A Layout*
+
+- [Lecture 099: Adding a Custom Component To A Layout](#-99-lesson-099--adding-a-custom-component-to-a-layout)
+    - [99.1 Context](#991-context)
+    - [99.2 Updating code according the context](#992-updating-code-according-the-context)
+        - [99.2.1 Adding `main-header.js` file](#9921-adding-main-headerjs-file)
+        - [99.2.2 Adding the `main-header.js` reference in `layout.js` file](#9922-adding-the-main-headerjs-reference-in-layoutjs-file)
+    - [99.3 Pending Fixes (TODO)](#993-pending-fixes-todo)
 
 ### 🧠 99.1 Context:
 
@@ -310,7 +419,7 @@ In Next.js, **custom components** are reusable React components that can be impo
 **Image Import Pattern:**
 When importing images in Next.js, the import returns an object with properties like `src`, `width`, `height`, and `blurDataURL`. Using `logoImg.src` accesses the optimized image path that Next.js generates. This pattern enables automatic image optimization, lazy loading, and responsive image generation.
 
-### ⚙️ 99.2 Updating code/theory according the context:
+### ⚙️ 99.2 Updating code according the context:
 
 **Summary**
 This section demonstrates how to create and integrate a custom reusable component (`MainHeader`) into a Next.js layout. The process involves creating a dedicated component file that encapsulates header functionality (logo, branding, navigation), then importing and rendering it within the root layout. This pattern allows the header to persist across all pages while keeping the layout code clean and maintainable. The lesson also covers Next.js image import patterns and how to properly reference imported images.
@@ -403,18 +512,7 @@ export default function RootLayout({ children }) {
 
 ![app vision](../img/section03-lecture099-001.png)
 
-### 🐞 99.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Invalid HTML Structure in Navigation | ⚠️ Identified | In `app/components/main-header.js` (lines 10-17), `<li>` elements are used directly inside `<nav>` without a parent `<ul>` or `<ol>` element. This violates HTML semantics and accessibility standards. Navigation lists should be wrapped in a proper list container. |
-| Missing Styling and CSS Classes | ⚠️ Identified | The `MainHeader` component (`app/components/main-header.js`) has no CSS classes or styling applied. The header, logo link, and navigation elements lack visual styling and layout structure, making them appear unstyled in the browser. |
-| Accessibility Concerns with Logo Link | ⚠️ Identified | The logo link in `app/components/main-header.js` (lines 6-9) wraps both an `<img>` and text content. This can cause accessibility issues with screen readers and keyboard navigation. The link should have proper `aria-label` attributes and the text should be structured more semantically. |
-| Missing Semantic Navigation Structure | ⚠️ Identified | The navigation in `MainHeader` lacks proper semantic structure. The `<nav>` element should contain a `<ul>` wrapping the `<li>` items, and navigation links should have proper accessibility attributes like `aria-label` or `aria-current` for active states. |
-| No Keyboard Navigation Support | ℹ️ Low Priority | The header component doesn't implement keyboard event handlers (`onKeyDown`) for accessibility. While Next.js `Link` components support keyboard navigation by default, custom event handlers could enhance the user experience for keyboard users. |
-| Image Optimization Not Utilized | ℹ️ Low Priority | The component uses `<img>` tag instead of Next.js's optimized `<Image>` component from `next/image`. While `logoImg.src` provides some optimization, using the `Image` component would provide better performance, lazy loading, and responsive image handling. |
-
-### 🧱 99.4 Pending Fixes (TODO)
+### 🧱 99.3 Pending Fixes (TODO)
 
 - [ ] Fix HTML semantics in `MainHeader` component: Wrap `<li>` elements in a `<ul>` container within the `<nav>` element (`app/components/main-header.js`, lines 10-17).
 - [ ] Add TailwindCSS classes or CSS modules to style the `MainHeader` component, including proper layout, spacing, and visual design for the header, logo, and navigation links.
@@ -423,11 +521,24 @@ export default function RootLayout({ children }) {
 - [ ] Consider replacing `<img>` with Next.js `<Image>` component from `next/image` for better image optimization, lazy loading, and responsive image handling.
 - [ ] Add keyboard event handlers (`onKeyDown`) to navigation links if custom keyboard navigation behavior is needed beyond default Next.js `Link` functionality.
 - [ ] Add active state styling and `aria-current` attribute to navigation links to indicate the current page for better accessibility and UX.
+- [ ] Address **Invalid HTML Structure in Navigation**: In `app/components/main-header.js` (lines 10-17), `<li>` elements are used directly inside `<nav>` without a parent `<ul>` or `<ol>` element. This violates HTML semantics and accessibility standards. Navigation lists should be wrapped in a proper list container.
+- [ ] Address **Missing Styling and CSS Classes**: The `MainHeader` component (`app/components/main-header.js`) has no CSS classes or styling applied. The header, logo link, and navigation elements lack visual styling and layout structure, making them appear unstyled in the browser.
+- [ ] Address **Accessibility Concerns with Logo Link**: The logo link in `app/components/main-header.js` (lines 6-9) wraps both an `<img>` and text content. This can cause accessibility issues with screen readers and keyboard navigation. The link should have proper `aria-label` attributes and the text should be structured more semantically.
+- [ ] Address **Missing Semantic Navigation Structure**: The navigation in `MainHeader` lacks proper semantic structure. The `<nav>` element should contain a `<ul>` wrapping the `<li>` items, and navigation links should have proper accessibility attributes like `aria-label` or `aria-current` for active states.
+- [ ] Address **No Keyboard Navigation Support**: The header component doesn't implement keyboard event handlers (`onKeyDown`) for accessibility. While Next.js `Link` components support keyboard navigation by default, custom event handlers could enhance the user experience for keyboard users.
+- [ ] Address **Image Optimization Not Utilized**: The component uses `<img>` tag instead of Next.js's optimized `<Image>` component from `next/image`. While `logoImg.src` provides some optimization, using the `Image` component would provide better performance, lazy loading, and responsive image handling.
 
 
 <br>
 
 ## 🔧 100. Lesson 100 — *Styling NextJS Project: Your Options & Using CSS Modules*
+
+- [Lecture 100: Styling NextJS Project: Your Options & Using CSS Modules](#-100-lesson-100--styling-nextjs-project-your-options--using-css-modules)
+    - [100.1 Context](#1001-context)
+    - [100.2 Updating code according the context](#1002-updating-code-according-the-context)
+        - [100.2.1 Creating `main-header.module.css` file](#10021-creating-main-headermodulecss-file)
+        - [100.2.2 Importing and using `main-header.module.css` file inside `main-header.js` file](#10022-importing-and-using-main-headermodulecss-file-inside-main-headerjs-file)
+    - [100.3 Pending Fixes (TODO)](#1003-pending-fixes-todo)
 
 ### 🧠 100.1 Context:
 
@@ -479,12 +590,14 @@ import classes from './main-header.module.css';
 // classes = { header: 'main-header_header_abc123', logo: 'main-header_logo_def456', ... }
 ```
 
-### ⚙️ 100.2 Updating code/theory according the context:
+### ⚙️ 100.2 Updating code according the context:
 
 **Summary**
 This section demonstrates how to style a Next.js component using CSS Modules. The process involves creating a CSS Module file (`main-header.module.css`) with component-specific styles, then importing and applying those styles to the `MainHeader` component using the `className` prop. This approach provides scoped styling that prevents style conflicts while maintaining clean, maintainable code organization. The lesson covers responsive design with media queries, hover/active states, and proper CSS Module import patterns.
 
 #### 100.2.1 Creating `main-header.module.css` file:
+
+[main-header.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/main-header/main-header.module.css)
 
 **Subsection Summary**
 Creates a CSS Module file specifically for the `MainHeader` component. The stylesheet defines scoped styles for the header container (flexbox layout with responsive padding), navigation (flex list with gap spacing), navigation links (hover/active states with gradient text effects), logo link (flex layout with typography), and an unused `.active` class for future active state implementation. The CSS includes responsive design via media queries and modern CSS features like `background-clip` for gradient text effects.
@@ -592,18 +705,7 @@ export default function MainHeader(){
 
 ![using module.css for main-header component](../img/section03-lecture100-001.png)
 
-### 🐞 100.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Unused `.active` CSS Class | ⚠️ Identified | The `.active` class is defined in `app/components/main-header.module.css` (lines 41-45) but is never applied to any element in `app/components/main-header.js`. This class appears intended for active navigation state but lacks implementation logic. |
-| Missing Active State Logic | ⚠️ Identified | Navigation links in `MainHeader` component don't have active state detection or styling. The component doesn't check the current route to apply the `.active` class, so users can't visually identify which page they're currently viewing. |
-| Missing Focus States for Accessibility | ⚠️ Identified | Navigation links in `app/components/main-header.module.css` have `:hover` and `:active` states but lack `:focus` states for keyboard navigation. This creates accessibility issues for users navigating with keyboard or screen readers. |
-| Commented Out Font Family | ℹ️ Low Priority | Line 20 in `main-header.module.css` contains a commented-out `font-family: 'Montserrat', sans-serif;` declaration. This suggests uncertainty about typography choices or incomplete styling decisions. |
-| No Mobile Navigation Handling | ℹ️ Low Priority | The CSS Module includes responsive padding via media queries but doesn't address mobile navigation patterns (e.g., hamburger menu, collapsible navigation). The navigation may overflow or become cramped on small screens. |
-| Missing Link Styling in Navigation | ℹ️ Low Priority | Navigation links (`<Link>` components) inside `<li>` elements don't have explicit CSS classes applied. They inherit styles from `.nav a` selector, but this creates tight coupling between CSS structure and HTML structure, making it harder to style links differently if needed. |
-
-### 🧱 100.4 Pending Fixes (TODO)
+### 🧱 100.3 Pending Fixes (TODO)
 
 - [ ] Implement active state logic in `MainHeader` component: Use Next.js `usePathname()` hook (requires `'use client'`) or compare `href` prop with current route to conditionally apply `classes.active` to navigation links (`app/components/main-header.js`).
 - [ ] Add `:focus` pseudo-class styles to `.nav a` selector in `main-header.module.css` for keyboard navigation accessibility. Include visible focus indicators (e.g., outline or box-shadow) that meet WCAG accessibility standards.
@@ -612,12 +714,26 @@ export default function MainHeader(){
 - [ ] Add mobile-responsive navigation: Implement a hamburger menu or collapsible navigation for small screens. This may require converting `MainHeader` to a Client Component and adding state management for mobile menu visibility.
 - [ ] Consider adding explicit CSS classes to navigation `<Link>` components if more granular styling control is needed, or document that `.nav a` selector is intentionally used for all navigation links.
 - [ ] Add `aria-current="page"` attribute to active navigation links for better screen reader support when active state logic is implemented.
+- [ ] Address **Unused `.active` CSS Class**: The `.active` class is defined in `app/components/main-header.module.css` (lines 41-45) but is never applied to any element in `app/components/main-header.js`. This class appears intended for active navigation state but lacks implementation logic.
+- [ ] Address **Missing Active State Logic**: Navigation links in `MainHeader` component don't have active state detection or styling. The component doesn't check the current route to apply the `.active` class, so users can't visually identify which page they're currently viewing.
+- [ ] Address **Missing Focus States for Accessibility**: Navigation links in `app/components/main-header.module.css` have `:hover` and `:active` states but lack `:focus` states for keyboard navigation. This creates accessibility issues for users navigating with keyboard or screen readers.
+- [ ] Address **Commented Out Font Family**: Line 20 in `main-header.module.css` contains a commented-out `font-family: 'Montserrat', sans-serif;` declaration. This suggests uncertainty about typography choices or incomplete styling decisions.
+- [ ] Address **No Mobile Navigation Handling**: The CSS Module includes responsive padding via media queries but doesn't address mobile navigation patterns (e.g., hamburger menu, collapsible navigation). The navigation may overflow or become cramped on small screens.
+- [ ] Address **Missing Link Styling in Navigation**: Navigation links (`<Link>` components) inside `<li>` elements don't have explicit CSS classes applied. They inherit styles from `.nav a` selector, but this creates tight coupling between CSS structure and HTML structure, making it harder to style links differently if needed.
 
 
 
 <br>
 
 ## 🔧 101. Lesson 101 — *Optimizing Images with the NextJS Image Component*
+
+- [Lecture 101: Optimizing Images with the NextJS Image Component](#-101-lesson-101--optimizing-images-with-the-nextjs-image-component)
+    - [101.1 Context](#1011-context)
+    - [101.2 Updating code according the context](#1012-updating-code-according-the-context)
+        - [101.2.1 Upgrade the logo from `<img>` to `<Image>`](#10121-upgrade-the-logo-from-img-to-image)
+        - [101.2.2 Adding `priority` to `<Image>` next component](#10122-adding-priority-to-image-next-component)
+        - [101.2.3 Benefits using `<Image>` next built-in component](#10123-benefits-using-image-next-built-in-component)
+    - [101.3 Pending Fixes (TODO)](#1013-pending-fixes-todo)
 
 ### 🧠 101.1 Context:
 
@@ -645,7 +761,7 @@ The **Next.js Image component** (`next/image`) is an extension of the HTML `<img
 - External Optimization Services: Services like Cloudinary or Imgix if you prefer to offload optimization entirely from the Next.js server.
 
 
-### ⚙️ 101.2 Updating code/theory according the context:
+### ⚙️ 101.2 Updating code according the context:
 
 **Summary**
 This section demonstrates the transition from standard HTML `<img>` tags to the optimized Next.js `<Image>` component. It focuses on implementing this change in the `MainHeader` component for the application logo. The lesson covers importing the component, updating the JSX structure, and resolving performance warnings by utilizing the `priority` attribute for critical above-the-fold content.
@@ -658,6 +774,8 @@ Previous the changing:
 * alt
 
 #### 101.2.1 Upgrade the logo from `<img>` to `<Image>`:
+
+[Image Component](https://nextjs.org/docs/app/api-reference/components/image)
 
 **Subsection Summary**
 Replaces the standard `<img>` tag with the Next.js `<Image>` component in the `MainHeader`. This update enables automatic image optimization, properly sized assets, and prevents layout shifts, ensuring a more stable and faster user experience.
@@ -747,25 +865,31 @@ Highlights the technical benefits of using the Next.js `Image` component over st
 
 ![benefits - Image next built-in component](../img/section03-lecture101-004.png)
 
-### 🐞 101.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Large Favicon Asset | ⚠️ Identified | The `app/icon.png` file is 1.3 MB, which is excessively large for a favicon and can impact build performance and metadata generation. |
-| Inconsistent Alt Text | ⚠️ Identified | There is currently no standardized approach for `alt` text across the application, which could lead to accessibility gaps as more images are added. |
-| Remote Image Limitation | ℹ️ Low Priority | Future images fetched from external databases will require specific configuration in `next.config.js` to work with the `<Image>` component. |
-
-### 🧱 101.4 Pending Fixes (TODO)
+### 🧱 101.3 Pending Fixes (TODO)
 
 - [ ] Optimize `app/icon.png` to a standard favicon size (e.g., 32x32 or 512x512) and reduce file size.
 - [ ] Create a reusable `MealImage` component that handles consistent `alt` text and placeholder logic for meal listings.
 - [ ] Add `remotePatterns` to `next.config.js` once external image sources are identified.
 - [ ] Audit `app/meals/page.js` and `app/community/page.js` to ensure standard `<img>` tags aren't introduced as those pages are built out.
+- [ ] Address **Large Favicon Asset**: The `app/icon.png` file is 1.3 MB, which is excessively large for a favicon and can impact build performance and metadata generation.
+- [ ] Address **Inconsistent Alt Text**: There is currently no standardized approach for `alt` text across the application, which could lead to accessibility gaps as more images are added.
+- [ ] Address **Remote Image Limitation**: Future images fetched from external databases will require specific configuration in `next.config.js` to work with the `<Image>` component.
 
 
 <br>
 
 ## 🔧 102. Lesson 102 — *Using More Custom Components*
+
+- [Lecture 102: Using More Custom Components](#-102-lesson-102--using-more-custom-components)
+    - [102.1 Context](#1021-context)
+    - [102.2 Updating code according the context](#1022-updating-code-according-the-context)
+        - [102.2.1 create `main-header-background.js` file](#10221-create-main-header-backgroundjs-file)
+        - [102.2.2 Import `main-header-background.js` component in `layout.js`](#10222-import-main-header-backgroundjs-component-in-layoutjs)
+        - [102.2.3 Create a `module.css` for `main-header-background.js` component](#10223-create-a-modulecss-for-main-header-backgroundjs-component)
+        - [102.2.4 update `main-header-background.js` component, importing its `module.css` file](#10224-update-main-header-backgroundjs-component-importing-its-modulecss-file)
+        - [102.2.5 Import `main-header-background.js` component in `main-header.js` instead](#10225-import-main-header-backgroundjs-component-in-main-headerjs-instead)
+        - [102.2.6 Create a new folder by `main.header`](#10226-create-a-new-folder-by-mainheader)
+    - [102.3 Pending Fixes (TODO)](#1023-pending-fixes-todo)
 
 ### 🧠 102.1 Context:
 
@@ -790,7 +914,7 @@ Highlights the technical benefits of using the Next.js `Image` component over st
 - **Inline SVG/Styles**: Keep code in the layout if it's extremely simple and unlikely to change or be reused.
 - **Global CSS**: Use global classes for backgrounds if they are truly universal and don't benefit from component scoping.
 
-### ⚙️ 102.2 Updating code/theory according the context:
+### ⚙️ 102.2 Updating code according the context:
 
 **Summary**
 This section details the refactoring of the application's header and background structure. The process involves extracting the decorative SVG background from `layout.js` into its own component (`MainHeaderBackground`), applying scoped styling via CSS Modules, and finally organizing all header-related components into a dedicated `main-header` folder for better project structure.
@@ -984,22 +1108,27 @@ app
 ```
 
 
-### 🐞 102.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Orphaned Imports in `layout.js` | ⚠️ Identified | After moving `MainHeaderBackground` to `MainHeader`, the imports and commented-out code in `app/layout.js` (lines 3 and 14) are no longer needed and should be removed. |
-| Inconsistent CSS Selectors | ℹ️ Low Priority | `main-header-background.module.css` uses both a class selector and a nested tag selector (`.header-background svg`). While functional, it's slightly inconsistent with the pure class-based approach used elsewhere. |
-
-### 🧱 102.4 Pending Fixes (TODO)
+### 🧱 102.3 Pending Fixes (TODO)
 
 - [ ] Clean up `app/layout.js`: Remove the unused import of `MainHeaderBackground` and the commented-out component call.
 - [ ] Audit `app/globals.css` to ensure no leftover styles from the SVG background remain now that they are in a CSS Module.
 - [ ] Add `aria-hidden="true"` to the SVG in `MainHeaderBackground` as it is purely decorative.
+- [ ] Address **Orphaned Imports in `layout.js`**: After moving `MainHeaderBackground` to `MainHeader`, the imports and commented-out code in `app/layout.js` (lines 3 and 14) are no longer needed and should be removed.
+- [ ] Address **Inconsistent CSS Selectors**: `main-header-background.module.css` uses both a class selector and a nested tag selector (`.header-background svg`). While functional, it's slightly inconsistent with the pure class-based approach used elsewhere.
 
 <br>
 
 ## 🔧 103. Lesson 103 — *Populating The Starting Page Content*
+
+- [Lecture 103: Populating The Starting Page Content](#-103-lesson-103--populating-the-starting-page-content)
+    - [103.1 Context](#1031-context)
+    - [103.2 Updating code according the context](#1032-updating-code-according-the-context)
+        - [103.2.1 Update `page.js` file](#10321-update-pagejs-file)
+        - [103.2.2 Create `page.module.css` file](#10322-create-pagemodulecss-file)
+        - [103.2.3 Import `page.module.css` in `page.js` file](#10323-import-pagemodulecss-in-pagejs-file)
+    - [103.3 Pending Fixes (TODO)](#1033-pending-fixes-todo)
+
+### 🧠 103.1 Context:
 
 Next.js applications often require a dedicated **Home/Landing page** that serves as the entry point for users. This page typically includes a "Hero" section with a call to action (CTA) and descriptive sections explaining the application's value proposition.
 
@@ -1021,7 +1150,8 @@ Next.js applications often require a dedicated **Home/Landing page** that serves
 **Alternatives:**
 - Using a redirect to a dashboard if the application is for logged-in users only.
 - A minimal landing page if the product is simple and doesn't need extensive explanation.
-### ⚙️ 103.2 Updating code/theory according the context:
+
+### ⚙️ 103.2 Updating code according the context:
 
 **Summary**
 This section focuses on populating the application's landing page (`app/page.js`) with structured content and custom styles. It involves creating a layout with a hero section, a slideshow placeholder, and informative sections for users. The styling is managed through a dedicated CSS Module (`app/page.module.css`), ensuring that the landing page's unique design (like gradients and specific layouts) remains isolated from the rest of the application.
@@ -1043,6 +1173,10 @@ export default function Home() {
 ```
 
 #### 103.2.2 Create `page.module.css` file:
+
+* [page.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/page.module.css)
+
+* [page.js](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/page.js)
 
 **Subsection Summary**
 Defines the visual design for the landing page. It includes sophisticated CSS patterns such as flexbox for layout, linear gradients for text and buttons, and hover effects for interactivity. The styles are scoped to the page to prevent global conflicts.
@@ -1178,28 +1312,31 @@ export default function Home() {
 
 ![](../img/section03-lecture103-001.png)
 
-### 🐞 103.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Typo in Hero Description | ⚠️ Identified | In `app/page.js`, the word "Taste" is misspelled as "Tasrw". |
-| Placeholder Slideshow | ⚠️ Identified | The slideshow container in `app/page.js` contains a `....` placeholder instead of actual content or a component. |
-| Redundant Paragraphs | ⚠️ Identified | Both sections in `main` contain duplicate sentences ("NextLevel Food is a place to discover..."), making the content feel repetitive and unpolished. |
-| Hardcoded Text | ℹ️ Low Priority | All landing page content is hardcoded in the component, which may make future internationalization (i18n) or updates more difficult. |
-
-### 🧱 103.4 Pending Fixes (TODO)
+### 🧱 103.3 Pending Fixes (TODO)
 
 - [ ] Correct the typo "Tasrw" to "Taste" in `app/page.js` (line 12).
 - [ ] Remove redundant paragraphs in the descriptive sections of `app/page.js`.
 - [ ] Implement an `ImageSlideshow` component to replace the placeholder `....` in `app/page.js`.
 - [ ] Add `aria-label` to the slideshow container for improved accessibility.
 - [ ] Extract the landing page text into a configuration file or constants to facilitate future updates.
+- [ ] Address **Typo in Hero Description**: In `app/page.js`, the word "Taste" is misspelled as "Tasrw".
+- [ ] Address **Placeholder Slideshow**: The slideshow container in `app/page.js` contains a `....` placeholder instead of actual content or a component.
+- [ ] Address **Redundant Paragraphs**: Both sections in `main` contain duplicate sentences ("NextLevel Food is a place to discover..."), making the content feel repetitive and unpolished.
+- [ ] Address **Hardcoded Text**: All landing page content is hardcoded in the component, which may make future internationalization (i18n) or updates more difficult.
 
 
 
 <br>
 
 ## 🔧 104. Lesson 104 — *Preparing an Image Slideshow*
+- [Lecture 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
+    - [104.1 Context](#1041-context)
+    - [104.2 Updating code according the context](#1042-updating-code-according-the-context)
+        - [104.2.1 Create `components/images/image-slideshow.js` file](#10421-create-componentsimagesimage-slideshowjs-file)
+        - [104.2.2 create its `module.css` file](#10422-create-its-modulecss-file)
+        - [104.2.3 Import `image-slideshow.js` file in `page.js`](#10423-import-image-slideshowjs-file-in-pagejs)
+        - [104.2.4. App crashes](#10424-app-crashes)
+    - [104.3 Pending Fixes (TODO)](#1043-pending-fixes-todo)
 
 ### 🧠 104.1 Context:
 
@@ -1227,12 +1364,14 @@ An **Image Slideshow** in Next.js is a dynamic UI component that cycles through 
 **Implementation with `setInterval`**:
 In React, an automatic slideshow is typically implemented using `setInterval` within a `useEffect` hook. This ensures the timer starts when the component mounts and is cleaned up when it unmounts, preventing memory leaks and unexpected behavior.
 
-### ⚙️ 104.2 Updating code/theory according the context:
+### ⚙️ 104.2 Updating code according the context:
 
 **Summary**
 This section documents the implementation of an automated `ImageSlideshow` component. It covers the creation of the React component using `useEffect` and `useState` for image rotation, the application of sophisticated CSS transitions for smooth visual effects, and the integration of the slideshow into the application's landing page. Finally, it addresses the common "use client" error that occurs when using browser-only hooks in Server Components.
 
 #### 104.2.1 Create `components/images/image-slideshow.js` file:
+
+[image-slideshow.js](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/images/image-slideshow.js)
 
 **Subsection Summary**
 Defines the `ImageSlideshow` component logic. It manages an internal state `currentImageIndex` and uses a `useEffect` hook to set up a 5-second interval timer that cycles through a predefined array of imported images. Each image is rendered using the Next.js `Image` component.
@@ -1289,6 +1428,8 @@ export default function ImageSlideshow() {
 ```
 
 #### 104.2.2 create its `module.css` file:
+
+[image-slideshow.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/images/image-slideshow.module.css)
 
 **Subsection Summary**
 Implements the visual styling and animation logic for the slideshow. It uses `position: absolute` to stack images and combines `opacity` with `transform` (scale and rotation) to create a smooth, sophisticated transition effect when the `.active` class is applied.
@@ -1387,27 +1528,31 @@ Identifies a critical error where the application crashes because `ImageSlidesho
 !["use client" issue](../img/section03-lecture104-001.png)
 
 
-### 🐞 104.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Missing "use client" Directive | ⚠️ Identified | The `ImageSlideshow` component uses `useState` and `useEffect`, which are Client-only features. Without the `"use client"` directive at the top of the file, Next.js throws an error when trying to render the component. |
-| Potential Memory Leaks | ✅ Fixed | The `useEffect` hook in `ImageSlideshow` correctly returns a cleanup function that calls `clearInterval(interval)`, preventing multiple timers from running if the component re-renders or unmounts. |
-| Lack of Manual Controls | ⚠️ Identified | The slideshow is purely automatic. Users cannot manually skip images or pause the rotation, which can be an accessibility and UX issue. |
-| Inaccessible Images in Map | ℹ️ Low Priority | While `alt` text is provided, the slideshow doesn't use `aria-live` or other roles to inform screen readers when the image changes automatically. |
-
-### 🧱 104.4 Pending Fixes (TODO)
+### 🧱 104.3 Pending Fixes (TODO)
 
 - [ ] Add the `"use client"` directive at the top of `app/components/images/image-slideshow.js` to resolve the runtime crash.
 - [ ] Implement manual navigation (Previous/Next buttons or indicator dots) to improve user control.
 - [ ] Add `aria-live="polite"` or similar accessibility attributes to the slideshow container.
 - [ ] Consider adding a "Pause on Hover" feature to the slideshow interval logic.
+- [ ] Address **Missing "use client" Directive**: The `ImageSlideshow` component uses `useState` and `useEffect`, which are Client-only features. Without the `"use client"` directive at the top of the file, Next.js throws an error when trying to render the component.
+- [ ] Address **Potential Memory Leaks**: The `useEffect` hook in `ImageSlideshow` correctly returns a cleanup function that calls `clearInterval(interval)`, preventing multiple timers from running if the component re-renders or unmounts.
+- [ ] Address **Lack of Manual Controls**: The slideshow is purely automatic. Users cannot manually skip images or pause the rotation, which can be an accessibility and UX issue.
+- [ ] Address **Inaccessible Images in Map**: While `alt` text is provided, the slideshow doesn't use `aria-live` or other roles to inform screen readers when the image changes automatically.
 
 
 
 <br>
 
 ## 🔧 105. Lesson 105 — *React Server Components vs Client Components - When To Use What*
+
+- [Lecture 105: React Server Components vs Client Components - When To Use What](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
+    - [105.1 Context](#1051-context)
+    - [105.2 Updating code according the context](#1052-updating-code-according-the-context)
+        - [105.2.1 Comment `Imageslideshow` component and add a `console.log()` in `main-header.js` file](#10521-comment-imageslideshow-component-and-add-a-consolelog-in-main-headerjs-file)
+        - [105.2.2 add `'use client'` at the beginning of the file `image-slideshow.js`](#10522-add-use-client-at-the-beginning-of-the-file-image-slideshowjs)
+        - [105.2.3 and add a `console.log()` in `image-slideshow.js`](#10523-and-add-a-consolelog-in-image-slideshowjs)
+        - [105.2.4 Uncomment `Imageslideshow` component in `app/page.js` file](#10524-uncomment-imageslideshow-component-in-apppagejs-file)
+    - [105.3 Pending Fixes (TODO)](#1053-pending-fixes-todo)
 
 ### 🧠 105.1 Context:
 
@@ -1431,7 +1576,7 @@ Identifies a critical error where the application crashes because `ImageSlidesho
 - If a component needs minimal interactivity, consider moving that interactivity to a smaller, nested Client Component while keeping the parent as a Server Component. This "leaf component" strategy minimizes the amount of JavaScript sent to the client.
 
 
-### 105.2 Updating code/theory according the context:
+### ⚙️ 105.2 Updating code according the context:
 
 **Summary**
 This section explores the practical differences between Server and Client Components by experimenting with `console.log` behavior and fixing runtime errors. It demonstrates that Server Components execute on the server (logs appear in the terminal), while Client Components execute in the browser (logs appear in the DevTools console). The lesson also reinforces when to use the `'use client'` directive to enable React hooks.
@@ -1592,25 +1737,30 @@ export default function ImageSlideshow() {
 
 ![use client component](../img/section03-lecture105-002.png)
 
-### 🐞 105.3 Issues:
-
-| Issue | Status | Log/Error |
-|---|---|---|
-| Confusion over execution environment | ✅ Fixed | Initially unclear where `console.log` outputs appear; clarified as terminal for Server Components. |
-| Unnecessary Client Components | ⚠️ Identified | Risk of making parent components "Client" when only a small child needs interactivity. |
-| Performance Overhead | ℹ️ Low Priority | Excessive use of Client Components can increase the JavaScript bundle unnecessarily. |
-
-### 🧱 105.4 Pending Fixes (TODO)
+### 🧱 105.3 Pending Fixes (TODO)
 
 - [ ] Audit all components in `app/components` to ensure they are Server Components unless interactivity is strictly required.
 - [ ] Refactor navigation links to use a small Client Component wrapper if active states (like `usePathname`) are needed, rather than making the entire header a Client Component.
 - [ ] Remove troubleshooting `console.log` statements from `MainHeader` and other components.
+- [ ] Address **Confusion over execution environment**: Initially unclear where `console.log` outputs appear; clarified as terminal for Server Components.
+- [ ] Address **Unnecessary Client Components**: Risk of making parent components "Client" when only a small child needs interactivity.
+- [ ] Address **Performance Overhead**: Excessive use of Client Components can increase the JavaScript bundle unnecessarily.
 
 
 
 <br>
 
 ## 🔧 106. Lesson 106 — *Using Client Components Efficiently*
+
+- [Lecture 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
+    - [106.1 Context](#1061-context)
+    - [106.2 Updating code according the context](#1062-updating-code-according-the-context)
+        - [106.2.1 Adding `Community` page content](#10621-adding-community-page-content)
+        - [106.2.2 creating `page.module.css` for `community` component](#10622-creating-pagemodulecss-for-community-component)
+        - [106.2.2 Fixing the issue for `<Link>` as active](#10622-fixing-the-issue-for-link-as-active)
+        - [106.2.3 Create `nav-link.js` & `nav-link.module.css` files](#10623-create-nav-linkjs--nav-linkmodulecss-files)
+        - [106.2.4 Update `main-header.js` code and `main-header.module.css` file](#10624-update-main-headerjs-code-and-main-headermodulecss-file)
+    - [106.3 Pending Fixes (TODO)](#1063-pending-fixes-todo)
 
 ### 🧠 106.1 Context:
 
@@ -1636,12 +1786,14 @@ Using Client Components efficiently involves keeping them as small as possible a
 **When to consider alternatives:**
 - If a large part of a component's subtree is highly interactive, it might be more practical and cleaner to make the entire parent a Client Component, rather than creating dozens of tiny "leaf" components.
 
-### ⚙️ 106.2 Updating code/theory according the context:
+### ⚙️ 106.2 Updating code according the context:
 
 **Summary**
 This section demonstrates how to optimize the use of Client Components by refactoring the global header. We transition from a less efficient approach where the entire `MainHeader` was a Client Component to a more surgical approach. By extracting the interactive navigation logic into a dedicated `NavLink` component, we allow `MainHeader` to revert to a Server Component, thus regaining its server-side benefits while still providing dynamic breadcrumbs/highlighting.
 
 #### 106.2.1 Adding `Community` page content:
+
+[page.js](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/community/page.js)
 
 **Subsection Summary**
 Populates the `CommunityPage` with static content (text and icons) using the Next.js `Image` component. This remains a Server Component as it requires no client-side interactivity.
@@ -1690,6 +1842,8 @@ export default function CommunityPage() {
 ```
 
 #### 106.2.2 creating `page.module.css` for `community` component:
+
+[page.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/community/page.module.css)
 
 **Subsection Summary**
 Defines the visual styles for the Community page, including responsive layouts, typography, and specific styling for the list of perks.
@@ -1988,46 +2142,38 @@ and
 }
 ```
 
-### 🐞 106.3 Issues:
+### 🧱 106.3 Pending Fixes (TODO)
 
-| Issue | Status | Log/Error |
-|---|---|---|
-| Inefficient Client Component usage | ✅ Fixed | Initially, `MainHeader` was converted to a Client Component just to access the `usePathname` hook, which is an anti-pattern for large layout components. |
-| Commented-out dead code | ✅ Fixed | Removed the commented-out CSS blocks in `main-header.module.css` that were moved to `nav-link.module.css`. |
-| Broad URL matching in `NavLink` | ℹ️ Low Priority | `path.startsWith(href)` might cause multiple links to appear active if one path is a subset of another (e.g., `/` vs `/meals`). This isn't currently an issue but worth noting for future routes. |
-
-### 🧱 106.4 Pending Fixes (TODO)
-
-- [x] Extract interactive navigation logic into the `NavLink` component.
-- [x] Restore `MainHeader` as a Server Component by removing `"use client"`.
-- [x] Clean up `app/components/main-header/main-header.module.css` by removing the commented-out CSS blocks.
+- [ ] Extract interactive navigation logic into the `NavLink` component.
+- [ ] Restore `MainHeader` as a Server Component by removing `"use client"`.
+- [ ] Clean up `app/components/main-header/main-header.module.css` by removing the commented-out CSS blocks.
 - [ ] Implement an exact match check in `NavLink` (e.g., `path === href`) if the root path `/` is added to the main navigation menu.
+- [ ] Address **Inefficient Client Component usage**: Initially, `MainHeader` was converted to a Client Component just to access the `usePathname` hook, which is an anti-pattern for large layout components.
+- [ ] Address **Commented-out dead code**: Removed the commented-out CSS blocks in `main-header.module.css` that were moved to `nav-link.module.css`.
+- [ ] Address **Broad URL matching in `NavLink`**: `path.startsWith(href)` might cause multiple links to appear active if one path is a subset of another (e.g., `/` vs `/meals`). This isn't currently an issue but worth noting for future routes.
+
+
+
 
 ---
-<br>
-<br>
-<br>
-<br>
 
 🔥 🔥 🔥 
-
 <br>
 
-## 🔧 XXX. Lesson XXX — *{{TITLE_NAME}}*
+## 🔧 XXX. Lesson XXX — {{TITLE_NAME}}
 
 ### 🧠 XXX.1 Context:
-
 
 ### ⚙️ XXX.2 Updating code/theory according the context:
 
 #### XXX.2.1
-```tsx
+```jsx
 /*  */
 
 ```
 
 #### XXX.2.2
-```tsx
+```jsx
 /*  */
 
 ```
