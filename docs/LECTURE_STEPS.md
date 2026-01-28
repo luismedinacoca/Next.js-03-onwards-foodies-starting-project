@@ -1608,6 +1608,400 @@ export default function ImageSlideshow() {
 
 
 
+<br>
+
+## 🔧 106. Lesson 106 — *Using Client Components Efficiently*
+
+### 🧠 106.1 Context:
+
+Using Client Components efficiently involves keeping them as small as possible and pushing them down the component tree. This "Leaf Component" strategy ensures that the majority of your application remains as **Server Components**, which offers significant advantages for performance and data management.
+
+**When and Why to use:**
+- **Interactivity Scope**: Only use Client Components for the specific UI elements that need browser-side features (hooks, event listeners, browser APIs).
+- **Server Component Benefits**: By keeping parent components as Server Components, you maintain direct access to server-side resources (like databases), keep sensitive logic off the client, and reduce the JavaScript bundle size.
+
+**Examples from the project:**
+- `app/components/main-header/main-header.js`: Refactored to remain a Server Component even though it needs to highlight the active link.
+- `app/components/main-header/nav-link.js`: A new Client Component created specifically to handle the "active link" logic using `usePathname`.
+
+**Advantages:**
+- **Optimized Bundle Size**: Less JavaScript is sent to the client.
+- **Improved Performance**: Faster initial TTI (Time to Interactive) and better SEO.
+- **Maintainability**: Clear separation between static structure and interactive behavior.
+
+**Disadvantages:**
+- **File Fragmentation**: Can lead to a larger number of small component files.
+- **Prop Passing**: Requires careful management of props when passing data from Server to Client Components.
+
+**When to consider alternatives:**
+- If a large part of a component's subtree is highly interactive, it might be more practical and cleaner to make the entire parent a Client Component, rather than creating dozens of tiny "leaf" components.
+
+### ⚙️ 106.2 Updating code/theory according the context:
+
+**Summary**
+This section demonstrates how to optimize the use of Client Components by refactoring the global header. We transition from a less efficient approach where the entire `MainHeader` was a Client Component to a more surgical approach. By extracting the interactive navigation logic into a dedicated `NavLink` component, we allow `MainHeader` to revert to a Server Component, thus regaining its server-side benefits while still providing dynamic breadcrumbs/highlighting.
+
+#### 106.2.1 Adding `Community` page content:
+
+**Subsection Summary**
+Populates the `CommunityPage` with static content (text and icons) using the Next.js `Image` component. This remains a Server Component as it requires no client-side interactivity.
+```tsx
+/* app/community/page.js */
+import Image from 'next/image';
+
+import mealIcon from '@/assets/icons/meal.png';
+import communityIcon from '@/assets/icons/community.png';
+import eventsIcon from '@/assets/icons/events.png';
+import classes from './page.module.css';
+
+export default function CommunityPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          One shared passion: <span className={classes.highlight}>Food</span>
+        </h1>
+        <p>Join our community and share your favorite recipes!</p>
+      </header>
+      <main className={classes.main}>
+        <h2>Community Perks</h2>
+
+        <ul className={classes.perks}>
+          <li>
+            <Image src={mealIcon} alt="A delicious meal" />
+            <p>Share & discover recipes</p>
+          </li>
+          <li>
+            <Image src={communityIcon} alt="A crowd of people, cooking" />
+            <p>Find new friends & like-minded people</p>
+          </li>
+          <li>
+            <Image
+              src={eventsIcon}
+              alt="A crowd of people at a cooking event"
+            />
+            <p>Participate in exclusive events</p>
+          </li>
+        </ul>
+      </main>
+    </>
+  );
+}
+```
+
+#### 106.2.2 creating `page.module.css` for `community` component:
+
+**Subsection Summary**
+Defines the visual styles for the Community page, including responsive layouts, typography, and specific styling for the list of perks.
+```tsx
+/* app/community/page.module.css */
+.header {
+  gap: 3rem;
+  margin: 3rem auto 5rem auto;
+  width: 90%;
+  max-width: 75rem;
+  color: #ddd6cb;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.header h1 {
+  font-family: 'Montserrat', sans-serif;
+}
+
+.highlight {
+  background: linear-gradient(90deg, #f9572a, #ff8a05);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.main {
+  width: 90%;
+  max-width: 40rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.main h2 {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 2rem;
+  margin-bottom: 3rem;
+  color: #ddd6cb;
+}
+
+.perks {
+  list-style: none;
+  margin: 3rem 0;
+  padding: 0;
+}
+
+.perks li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.perks img {
+  width: 8rem;
+  height: 8rem;
+  object-fit: contain;
+}
+
+.perks p {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+  color: #ddd6cb;
+}
+```
+
+![community page and its content](../img/section03-lecture106-001.png)
+
+#### 106.2.2 Fixing the issue for `<Link>` as active:
+
+**Subsection Summary**
+Demonstrates an initial (but inefficient) fix for highlighting the active link. It uses the `usePathname` hook within `MainHeader`, which necessitates marking the entire header as a Client Component with the `"use client"` directive.
+```tsx
+/* app/components/main-header/main-header.js */
+"use client"    // 👈🏽 ✅
+import Link from "next/link";
+import Image from "next/image";
+import MainHeaderBackground from "./main-header-background";
+import { usePathname } from "next/navigation";    // 👈🏽 ✅
+
+import logoImg from "@/assets/logo.png";
+import classes from "./main-header.module.css";
+
+export default function MainHeader() {
+  const path = usePathname();    // 👈🏽 ✅
+  return (
+    <>
+      <MainHeaderBackground />
+      <header className={classes.header}>
+        <Link className={classes.logo} href="/">
+          <Image src={logoImg} alt="A plate with food on it" priority />
+          NextLevel Food
+        </Link>
+        <nav className={classes.nav}>
+          <ul>
+            <li>
+              <Link href="/meals" className={path.startsWith('/meals') ? classes.active : undefined}>Browse Meals</Link>    {/* 👈🏽 ✅ */}
+            </li>
+            <li>
+              <Link href="/community" className={path.startsWith('/community') ? classes.active : undefined}>Foodies Community</Link>   {/* 👈🏽 ✅ */}
+            </li>
+          </ul>
+        </nav>
+      </header>
+    </>
+  );
+}
+```
+
+> Without adding `"use client"`, it will occur this error:
+
+![no usec client - issue](../img/section03-lecture106-002.png)
+
+> Issue fixed:
+
+![link active by Community](../img/section03-lecture106-003.png)
+![link active by Meals](../img/section03-lecture106-004.png)
+
+
+> New Issue:
+
+- `main-header.js` is not `React Server Component (RSC)` anymore.
+- `main-header.js` loses its server component advantages.
+
+#### 106.2.3 Create `nav-link.js` & `nav-link.module.css` files:
+
+**Subsection Summary**
+Implements the optimized "leaf component" solution. The `NavLink` component is marked with `"use client"` and isolates the `usePathname` hook, allowing it to manage its own active state styling independently of its parent.
+```tsx
+/* app/components/main-header/nav-link.js */
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import classes from "./nav-link.module.css";
+
+export default function NavLink({ href, children }) {
+  const path = usePathname();
+  return (
+    <Link 
+      href={href} 
+      className={ path.startsWith(href) 
+        ? `${classes.link} ${classes.active}` 
+        : classes.link }
+    >
+      {children}
+    </Link>
+  );
+}
+
+```
+
+And 
+
+```css
+/* app/components/main-header/nav-link.module.css */
+.link {
+  text-decoration: none;
+  color: #ddd6cb;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+}
+
+.link:hover,
+.link:active {
+  background: linear-gradient(90deg, #ff8a05, #f9b331);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 18px rgba(248, 190, 42, 0.8);
+}
+
+.active {
+  background: linear-gradient(90deg, #ff8a05, #f9b331);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+```
+
+#### 106.2.4 Update `main-header.js` code and `main-header.module.css` file:
+
+**Subsection Summary**
+Refactors the `MainHeader` to use the new `NavLink` component. This allows for the removal of the `"use client"` directive from `MainHeader`, restoring it as a Server Component. It also involves cleaning up or commenting out styles that were moved to the `NavLink` module.
+```jsx
+/* app/components/main-header/main-header.js */
+//"use client";   // 👈🏽 ✅
+import Link from "next/link";
+import Image from "next/image";
+import MainHeaderBackground from "./main-header-background";
+// import { usePathname } from "next/navigation";   // 👈🏽 ✅
+import NavLink from "./nav-link";   // 👈🏽 ✅
+
+import logoImg from "@/assets/logo.png";
+import classes from "./main-header.module.css";
+
+export default function MainHeader() {
+  // const path = usePathname();    // 👈🏽 ✅
+  return (
+    <>
+      <MainHeaderBackground />
+      <header className={classes.header}>
+        <Link className={classes.logo} href="/">
+          <Image src={logoImg} alt="A plate with food on it" priority />
+          NextLevel Food
+        </Link>
+        <nav className={classes.nav}>
+          <ul>
+            <li>
+              <NavLink href="/meals">Browse Meals</NavLink>   {/* 👈🏽 ✅ */}
+            </li>
+            <li>
+              <NavLink href="/community">Foodies Community</NavLink>    {/* 👈🏽 ✅ */}
+            </li>
+          </ul>
+        </nav>
+      </header>
+    </>
+  );
+}
+
+```
+
+and 
+
+```css
+/*  */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .header {
+    padding: 2rem 10%;
+  }
+}
+
+.nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 1.5rem;
+  /* font-family: 'Montserrat', sans-serif; */
+  font-size: 1.25rem;
+}
+
+/* .nav a {   // 👈🏽 ✅ (.nav a => .link)
+  text-decoration: none;
+  color: #ddd6cb;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+}
+
+.nav a:hover,
+.nav a:active {   // 👈🏽 ✅ (.nav a => .link)
+  background: linear-gradient(90deg, #ff8a05, #f9b331);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 18px rgba(248, 190, 42, 0.8);
+} */
+
+/* .active {    // 👈🏽 ✅
+  background: linear-gradient(90deg, #ff8a05, #f9b331);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+} */
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  text-decoration: none;
+  color: #ddd6cb;
+  font-weight: bold;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.15rem;
+  text-transform: uppercase;
+  font-size: 1.5rem;
+}
+
+.logo img {
+  width: 5rem;
+  height: 5rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.75rem rgba(0, 0, 0, 0.5));
+}
+```
+
+### 🐞 106.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Inefficient Client Component usage | ✅ Fixed | Initially, `MainHeader` was converted to a Client Component just to access the `usePathname` hook, which is an anti-pattern for large layout components. |
+| Commented-out dead code | ✅ Fixed | Removed the commented-out CSS blocks in `main-header.module.css` that were moved to `nav-link.module.css`. |
+| Broad URL matching in `NavLink` | ℹ️ Low Priority | `path.startsWith(href)` might cause multiple links to appear active if one path is a subset of another (e.g., `/` vs `/meals`). This isn't currently an issue but worth noting for future routes. |
+
+### 🧱 106.4 Pending Fixes (TODO)
+
+- [x] Extract interactive navigation logic into the `NavLink` component.
+- [x] Restore `MainHeader` as a Server Component by removing `"use client"`.
+- [x] Clean up `app/components/main-header/main-header.module.css` by removing the commented-out CSS blocks.
+- [ ] Implement an exact match check in `NavLink` (e.g., `path === href`) if the root path `/` is added to the main navigation menu.
 
 ---
 <br>
