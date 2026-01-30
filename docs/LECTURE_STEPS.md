@@ -2153,14 +2153,747 @@ and
 - [ ] Address **Broad URL matching in `NavLink`**: `path.startsWith(href)` might cause multiple links to appear active if one path is a subset of another (e.g., `/` vs `/meals`). This isn't currently an issue but worth noting for future routes.
 
 
+<br>
+
+## 🔧 107. Lesson 107 — *Outputting Meals Data & Images With Unknown Dimensions*
+
+- [Lecture 107: Outputting Meals Data & Images With Unknown Dimensions](#-107-lesson-107--outputting-meals-data--images-with-unknown-dimensions)
+  - [107.1 Context](#1071-context)
+  - [107.2 Updating code/theory according the context](#1072-updating-code-according-the-context)
+    - [107.2.1 create `page.module.css` file](#10721-create-pagemodulecss-file)
+    - [107.2.2 Update `meals/page.js` file](#10722-update-mealspagejs-file)
+    - [107.2.3 Create `meals/meals-grid.module.css` file](#10723-create-mealsmeals-gridmodulecss-file)
+    - [107.2.4 Create and update the `meals/meals-grid.js` file](#10724-create-and-update-the-mealsmeals-gridjs-file)
+    - [107.2.5 create `meals/meal-item.module.css` file](#10725-create-mealsmeal-itemmodulecss-file)
+    - [107.2.6 create and update `meals/meal-item.js` file](#10726-create-and-update-mealsmeal-itemjs-file)
+    - [107.2.7 Update the `meals/meal-grid.js` file](#10727-update-the-mealsmeal-gridjs-file)
+    - [107.2.8 Update `meals/page.js` file and import `MealsGrid` component](#10728-update-mealspagejs-file-and-import-mealsgrid-component)
+  - [107.3 Issues](#1073-issues)
+  - [107.4 Pending Fixes (TODO)](#1074-pending-fixes-todo)
+
+### 🧠 107.1 Context:
+
+In many web applications, you need to display lists of items that include images where you don't know the dimensions in advance. Next.js provides tools to handle this performantly while maintaining layout stability.
+
+- **Dynamic Image Sizing**: When dimensions are unknown, the `fill` prop in the Next.js `Image` component allows the image to fill its parent container.
+- **Parent Container Requirements**: When using `fill`, the parent element must have `position: relative`, `position: absolute`, or `position: fixed`.
+- **Image Cropping and Scaling**: Use `object-fit: cover` to ensure the image fills the container without being distorted.
+- **Grid Layouts**: `display: grid` with `auto-fill` and `minmax` is an excellent pattern for creating responsive lists of items.
+
+**Key Concepts:**
+1. **`fill` Prop**: Allows images to size themselves relative to their parent rather than requiring hardcoded width and height.
+2. **Container-Driven Sizing**: Layout shifts are prevented by the container having a defined size, even if the image content is dynamic.
+3. **`object-fit` Integration**: Crucial for maintaining aspect ratio of dynamic images within static containers.
+
+**Advantages:**
+- **Flexibility**: Handles images from external sources or user uploads easily.
+- **Layout Stability**: Prevents Cumulative Layout Shift (CLS) by giving the parent container a fixed size.
+- **Responsive Design**: Works seamlessly with grid and flexbox layouts.
+
+**Gotchas:**
+- Forgetting `position: relative` on the parent container when using `fill` will cause the image to fill the nearest positioned ancestor (often the whole page).
+- If `object-fit` is not used, the image might look stretched or squashed.
+
+**When to consider alternatives:**
+- If you *do* know the aspect ratio or exact dimensions, specifying `width` and `height` is generally more efficient for the browser.
+
+### ⚙️ 107.2 Updating code/theory according the context:
+
+#### **Summary**
+This section documents the transition of the meals listing page from a placeholder to a functional grid-based layout. It covers the creation of scoped styles for the meals page, the implementation of a reusable `MealsGrid` component for managing item lists, and a `MealItem` component for individual meal presentations. A key technical focus is the use of the `fill` prop in the `Image` component to handle dynamic images within fixed-size containers.
+
+Repos:
+- [page.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/meals/page.module.css)
+- [meals-grid.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/meals/meals-grid.module.css)
+- [meal-item.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/meals/meal-item.module.css)
+- [meal-item.js](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/meals/meal-item.js)
+
+#### 107.2.1 create `page.module.css` file:
+
+**Subsection Summary**
+Defines the visual structure for the meals listing page. Includes high-level styles for the header (margins, fonts, gradients) and a sophisticated loading animation for future use during data fetching.
+```css
+/* app/meals/page.module.css */
+.header {
+  gap: 3rem;
+  margin: 3rem auto 5rem auto;
+  width: 90%;
+  max-width: 75rem;
+  color: #ddd6cb;
+  font-size: 1.5rem;
+}
+
+.header h1 {
+  font-family: 'Montserrat', sans-serif;
+}
+
+.highlight {
+  background: linear-gradient(90deg, #f9572a, #ff8a05);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header p {
+  margin: 0;
+}
+
+.cta a {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #f9572a, #ff9b05);
+  color: #ffffff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.loading {
+  text-align: center;
+  animation: loading 1.2s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    color: #e9e9e9;
+  }
+  50% {
+    color: #b89b84;
+  }
+  100% {
+    color: #e9e9e9;
+  }
+}
+```
+
+#### 107.2.2 Update `meals/page.js` file:
+
+**Subsection Summary**
+Populates the main meals page with a header and a call-to-action link. It sets up the basic layout using the newly created CSS module and prepares the `main` section to receive the meals grid. Note: Current link has a typo (`/meal/share` instead of `/meals/share`).
+```jsx
+/* app/meals/page.js */
+import Link from 'next/link'
+import classes from './page.module.css'
+
+export default function MealsPage(){
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meal/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}></main>
+    </>
+  )
+}
+```
+
+#### 107.2.3 Create `meals/meals-grid.module.css` file
+
+**Subsection Summary**
+Implements a responsive grid layout for the meals list. It uses `grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr))` to ensure the layout adapts to different screen sizes while maintaining a minimum item width.
+```css
+/* app/components/meals/meals-grid.module.css */
+.meals {
+  width: 90%;
+  max-width: 90rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  grid-gap: 5rem;
+  margin: 2rem auto;
+  list-style: none;
+  padding: 0;
+}
+```
+
+#### 107.2.4 Create and update the `meals/meals-grid.js` file:
+
+**Subsection Summary**
+Creates the `MealsGrid` component that maps through an array of meals. It currently uses a placeholder `<li>` for each meal. Note: This implementation currently contains a bug where the `map` callback does not return any JSX.
+```jsx
+/* app/components/meals/meals-grid.js */
+import classes from './meals-grid.module.css'
+
+export default function MealsGrid({meals}){
+  return (
+    <ul className={classes.meals}>
+      {meals.map( (meal) => {
+        <li key={meal.id}>{meal.title}</li>
+      })}
+    </ul>
+  )
+}
+```
+
+#### 107.2.5 create `meals/meal-item.module.css` file:
+
+**Subsection Summary**
+Provides detailed styling for individual meal cards. Key features include a fixed-height image container with `position: relative` (to support the `Image` component's `fill` prop), `object-fit: cover` for images, and gradient backgrounds for a premium look.
+```css
+/* app/components/meals/meal-item.module.css */
+.meal {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  border-radius: 4px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  transition: all 0.3s ease-in-out;
+  color: #ddd6cb;
+  background: linear-gradient(90deg, #2c1e19, #25200f);
+}
+
+.headerText {
+  padding: 0.5rem 1rem 0 1rem;
+}
+
+.headerText h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.headerText p {
+  font-size: 0.75rem;
+  color: #cfa69b;
+  font-style: italic;
+}
+
+.meal h2,
+.meal p {
+  margin: 0;
+}
+
+.image {
+  position: relative;
+  height: 15rem;
+}
+
+.meal img {
+  object-fit: cover;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.summary {
+  padding: 1rem 1rem 0 1rem;
+}
+
+.actions {
+  padding: 1rem;
+  text-align: right;
+}
+
+.actions a {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #f9572a, #ff9b05);
+  color: #ffffff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.actions a:hover,
+.actions a:active {
+  background: linear-gradient(90deg, #fd4715, #f9b241);
+  box-shadow: 0 0 12px rgba(242, 100, 18, 0.8);
+}
+```
+
+#### 107.2.6 create and update `meals/meal-item.js` file:
+
+**Subsection Summary**
+Implements the `MealItem` component using the Next.js `Image` component with the `fill` prop. This allows the component to display images of varying aspect ratios consistently within its card-like structure. It also includes links to dynamic meal detail pages.
+```jsx
+/* app/components/meals/meal-item.js */
+import Link from 'next/link';
+import Image from 'next/image';
+
+import classes from './meal-item.module.css';
+
+export default function MealItem({ title, slug, image, summary, creator }) {
+  return (
+    <article className={classes.meal}>
+      <header>
+        <div className={classes.image}>
+          <Image src={image} alt={title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h2>{title}</h2>
+          <p>by {creator}</p>
+        </div>
+      </header>
+      <div className={classes.content}>
+        <p className={classes.summary}>{summary}</p>
+        <div className={classes.actions}>
+          <Link href={`/meals/${slug}`}>View Details</Link>
+        </div>
+      </div>
+    </article>
+  );
+}
+```
+
+![meals/[mealSlug] link](../img/section03-lecture107-001.png)
+
+> Note:
+
+* You can use the "`fill`" prop instead of setting a "`width`" and "`height`" whenever you have an image where you don't know the dimensions in advance.
+
+#### 107.2.7 Update the `meals/meal-grid.js` file importing and using the `<MealItem />` component:
+
+**Subsection Summary**
+Integrates the `MealItem` component into the `MealsGrid` list. It uses the spread operator (`{...meal}`) to pass all meal properties as props to the item component. Note: The return bug in the `map` persists here.
+```jsx
+/* app/components/meals/meals-grid.js */
+import classes from './meals-grid.module.css'
+import MealItem from './meal-item';   // 👈🏽 ✅
+
+export default function MealsGrid({meals}){
+  return (
+    <ul className={classes.meals}>
+      {meals.map( (meal) => {
+        <li key={meal.id}>
+          <MealItem {...meal} />    {/* 👈🏽 ✅ */}
+        </li>
+      })}
+    </ul>
+  )
+}
+```
+
+#### 107.2.8 Update `meals/page.js` file and import `MealsGrid` component:
+
+**Subsection Summary**
+Completes the initial meals page implementation by importing and rendering the `MealsGrid`. It currently passes an empty array as a placeholder for data that will be fetched in future lessons.
+```jsx
+/* app/meals/page.js */
+import Link from 'next/link'
+import classes from './page.module.css'
+import MealsGrid from '../components/meals/meals-grid'    // 👈🏽 ✅ 
+
+export default function MealsPage(){
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meal/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}>
+        <MealsGrid meals={[]} />    {/* 👈🏽 ✅ */}
+      </main>
+    </>
+  )
+}
+```
+
+### 🐞 107.3 Issues:
+
+- **Missing return in `MealsGrid` map**: In `app/components/meals/meals-grid.js` (lines 7-11), the `map` function uses curly braces `{}` but does not include a `return` statement, resulting in an empty list being rendered even if meals were provided.
+- **Incorrect CTA Link**: In `app/meals/page.js` (line 14), the link `href="/meal/share"` is incorrect; it should be `href="/meals/share"` to match the defined route.
+- **Empty Meals Data**: The `MealsPage` is currently passing an empty array `[]` to `MealsGrid`, making the page appear empty by default.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Missing return in `map` | ⚠️ Identified | `app/components/meals/meals-grid.js:7-11` |
+| Typo in Share Meal Link | ⚠️ Identified | `app/meals/page.js:14` |
+| Empty Data Placeholder | ℹ️ Informational | `app/meals/page.js:18` |
+
+### 🧱 107.4 Pending Fixes (TODO)
+
+- [ ] Add `return` statement to the `map` function in `app/components/meals/meals-grid.js` (line 8).
+- [ ] Fix the `href` attribute in `app/meals/page.js` from `/meal/share` to `/meals/share`.
+- [ ] Implement data fetching logic in `app/meals/page.js` to replace the empty array with real meal data.
+- [ ] Add `placeholder="blur"` to images in `MealItem` for better perceived performance once local images are available.
+
+
+<br>
+
+## 🔧 108. Lesson 108 — *Setting Up A SQLite Database*
+
+- [108. Lesson 108 — *Setting Up A SQLite Database*](#-108-lesson-108--setting-up-a-sqlite-database)
+- [108.1 Context](#1081-context)
+- [108.2 Updating code/theory according the context](#1082-updating-code-according-the-context)
+  - [108.2.1 Install better-sqlite3](#10821-install-better-sqlite3)
+  - [108.2.2 Create initdb.js](#10822-create-initdbjs)
+  - [108.2.3 Execute initdb.js](#10823-execute-initdbjs)
+  - [108.2.4 Database File Creation](#10824-database-file-creation)
+- [108.3 Issues](#1083-issues)
+- [108.4 Pending Fixes (TODO)](#1084-pending-fixes-todo)
+
+### 🧠 108.1 Context:
+
+**SQLite** is a lightweight, serverless, zero-configuration, transactional SQL database engine. Unlike most other SQL databases, SQLite does not have a separate server process. It reads and writes directly to ordinary disk files. In the context of a Next.js application, particularly during development, it provides a simple and efficient way to persist data without the overhead of setting up a full-blown database server like PostgreSQL or MySQL.
+
+**When to use:**
+- **Local Development**: Perfect for prototyping and early-stage development due to its simplicity.
+- **Embedded Applications**: Ideal for applications that need a self-contained database.
+- **Small-Scale Production**: Can be used for applications with low-to-medium traffic and simple data needs.
+
+**Examples from the project:**
+- `initdb.js`: A script used to initialize the database schema and populate it with initial dummy data.
+- `meals.db`: The resulting SQLite database file that stores all meal-related information.
+- `better-sqlite3`: The Node.js library used to interact with the SQLite database synchronously, which simplifies the integration in Server Components.
+
+**Key Concepts:**
+1. **Serverless Architecture**: No separate database process; the database is a file.
+2. **Synchronous Execution**: `better-sqlite3` executes queries synchronously, which is often preferred in server-side logic for its simplicity.
+3. **Seeding**: The process of populating the database with initial data using a script like `initdb.js`.
+
+**Advantages:**
+- Zero configuration and easy setup.
+- Highly portable (the whole database is one file).
+- Excellent performance for read-heavy workloads common in landing pages and listings.
+
+**Disadvantages/Gotchas:**
+- **Concurrency**: SQLite can struggle with many simultaneous write operations compared to client-server databases.
+- **Limited Scaling**: Not designed for massive datasets or highly distributed systems.
+- **File Management**: You must ensure the database file is properly backed up and not accidentally deleted.
+
+**When to consider alternatives:**
+- If your application expects a very high volume of concurrent writes.
+- If you need advanced features like full-text search or complex GIS capabilities provided by databases like PostgreSQL.
+- If your data needs to be shared across multiple distributed server instances.
+
+### ⚙️ 108.2 Updating code/theory according the context:
+
+#### **Summary**
+This section documents the setup and initialization of a persistent SQLite database for the meals application. It covers the installation of the `better-sqlite3` driver, the creation of a seeding script (`initdb.js`) to define the schema and insert mock data, and the execution process that results in the creation of the `meals.db` file. This establishes the data layer that will power the meals listing and detail pages.
+
+Repo:
+
+* [initdb.js](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/initdb.js)
+
+#### 108.2.1 Install `better-sqlite3` dependency:
+
+**Subsection Summary**
+Installs the necessary library to interact with SQLite. `better-sqlite3` is chosen for its performance and synchronous API, which integrates well with Node.js and Next.js.
+
+```bash
+npm install better-sqlite3
+```
+
+#### 108.2.2 Create `initdb.js`:
+
+**Subsection Summary**
+Defines the database initialization script. This file creates the `meals` table with the required schema (slug, title, image, summary, instructions, etc.) and populates it with an array of dummy meal objects. It uses prepared statements for efficient data insertion.
+
+```jsx
+/* initdb.js */
+const sql = require('better-sqlite3');
+const db = sql('meals.db');
+
+const dummyMeals = [
+  {
+    title: 'Juicy Cheese Burger',
+    slug: 'juicy-cheese-burger',
+    image: '/images/burger.jpg',
+    summary:
+      'A mouth-watering burger with a juicy beef patty and melted cheese, served in a soft bun.',
+    instructions: `
+      1. Prepare the patty:
+         Mix 200g of ground beef with salt and pepper. Form into a patty.
+
+      2. Cook the patty:
+         Heat a pan with a bit of oil. Cook the patty for 2-3 minutes each side, until browned.
+
+      3. Assemble the burger:
+         Toast the burger bun halves. Place lettuce and tomato on the bottom half. Add the cooked patty and top with a slice of cheese.
+
+      4. Serve:
+         Complete the assembly with the top bun and serve hot.
+    `,
+    creator: 'John Doe',
+    creator_email: 'johndoe@example.com',
+  },
+  {
+    title: 'Spicy Curry',
+    slug: 'spicy-curry',
+    image: '/images/curry.jpg',
+    summary:
+      'A rich and spicy curry, infused with exotic spices and creamy coconut milk.',
+    instructions: `
+      1. Chop vegetables:
+         Cut your choice of vegetables into bite-sized pieces.
+
+      2. Sauté vegetables:
+         In a pan with oil, sauté the vegetables until they start to soften.
+
+      3. Add curry paste:
+         Stir in 2 tablespoons of curry paste and cook for another minute.
+
+      4. Simmer with coconut milk:
+         Pour in 500ml of coconut milk and bring to a simmer. Let it cook for about 15 minutes.
+
+      5. Serve:
+         Enjoy this creamy curry with rice or bread.
+    `,
+    creator: 'Max Schwarz',
+    creator_email: 'max@example.com',
+  },
+  {
+    title: 'Homemade Dumplings',
+    slug: 'homemade-dumplings',
+    image: '/images/dumplings.jpg',
+    summary:
+      'Tender dumplings filled with savory meat and vegetables, steamed to perfection.',
+    instructions: `
+      1. Prepare the filling:
+         Mix minced meat, shredded vegetables, and spices.
+
+      2. Fill the dumplings:
+         Place a spoonful of filling in the center of each dumpling wrapper. Wet the edges and fold to seal.
+
+      3. Steam the dumplings:
+         Arrange dumplings in a steamer. Steam for about 10 minutes.
+
+      4. Serve:
+         Enjoy these dumplings hot, with a dipping sauce of your choice.
+    `,
+    creator: 'Emily Chen',
+    creator_email: 'emilychen@example.com',
+  },
+  {
+    title: 'Classic Mac n Cheese',
+    slug: 'classic-mac-n-cheese',
+    image: '/images/macncheese.jpg',
+    summary:
+      "Creamy and cheesy macaroni, a comforting classic that's always a crowd-pleaser.",
+    instructions: `
+      1. Cook the macaroni:
+         Boil macaroni according to package instructions until al dente.
+
+      2. Prepare cheese sauce:
+         In a saucepan, melt butter, add flour, and gradually whisk in milk until thickened. Stir in grated cheese until melted.
+
+      3. Combine:
+         Mix the cheese sauce with the drained macaroni.
+
+      4. Bake:
+         Transfer to a baking dish, top with breadcrumbs, and bake until golden.
+
+      5. Serve:
+         Serve hot, garnished with parsley if desired.
+    `,
+    creator: 'Laura Smith',
+    creator_email: 'laurasmith@example.com',
+  },
+  {
+    title: 'Authentic Pizza',
+    slug: 'authentic-pizza',
+    image: '/images/pizza.jpg',
+    summary:
+      'Hand-tossed pizza with a tangy tomato sauce, fresh toppings, and melted cheese.',
+    instructions: `
+      1. Prepare the dough:
+         Knead pizza dough and let it rise until doubled in size.
+
+      2. Shape and add toppings:
+         Roll out the dough, spread tomato sauce, and add your favorite toppings and cheese.
+
+      3. Bake the pizza:
+         Bake in a preheated oven at 220°C for about 15-20 minutes.
+
+      4. Serve:
+         Slice hot and enjoy with a sprinkle of basil leaves.
+    `,
+    creator: 'Mario Rossi',
+    creator_email: 'mariorossi@example.com',
+  },
+  {
+    title: 'Wiener Schnitzel',
+    slug: 'wiener-schnitzel',
+    image: '/images/schnitzel.jpg',
+    summary:
+      'Crispy, golden-brown breaded veal cutlet, a classic Austrian dish.',
+    instructions: `
+      1. Prepare the veal:
+         Pound veal cutlets to an even thickness.
+
+      2. Bread the veal:
+         Coat each cutlet in flour, dip in beaten eggs, and then in breadcrumbs.
+
+      3. Fry the schnitzel:
+      Heat oil in a pan and fry each schnitzel until golden brown on both sides.
+
+      4. Serve:
+      Serve hot with a slice of lemon and a side of potato salad or greens.
+ `,
+    creator: 'Franz Huber',
+    creator_email: 'franzhuber@example.com',
+  },
+  {
+    title: 'Fresh Tomato Salad',
+    slug: 'fresh-tomato-salad',
+    image: '/images/tomato-salad.jpg',
+    summary:
+      'A light and refreshing salad with ripe tomatoes, fresh basil, and a tangy vinaigrette.',
+    instructions: `
+      1. Prepare the tomatoes:
+        Slice fresh tomatoes and arrange them on a plate.
+    
+      2. Add herbs and seasoning:
+         Sprinkle chopped basil, salt, and pepper over the tomatoes.
+    
+      3. Dress the salad:
+         Drizzle with olive oil and balsamic vinegar.
+    
+      4. Serve:
+         Enjoy this simple, flavorful salad as a side dish or light meal.
+    `,
+    creator: 'Sophia Green',
+    creator_email: 'sophiagreen@example.com',
+  },
+];
+
+db.prepare(`
+   CREATE TABLE IF NOT EXISTS meals (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       slug TEXT NOT NULL UNIQUE,
+       title TEXT NOT NULL,
+       image TEXT NOT NULL,
+       summary TEXT NOT NULL,
+       instructions TEXT NOT NULL,
+       creator TEXT NOT NULL,
+       creator_email TEXT NOT NULL
+    )
+`).run();
+
+async function initData() {
+  const stmt = db.prepare(`
+      INSERT INTO meals VALUES (
+         null,
+         @slug,
+         @title,
+         @image,
+         @summary,
+         @instructions,
+         @creator,
+         @creator_email
+      )
+   `);
+
+  for (const meal of dummyMeals) {
+    stmt.run(meal);
+  }
+}
+
+initData();
+```
+
+#### 108.2.3 execute from terminal:
+
+**Subsection Summary**
+Triggers the database creation and seeding process. Running this command in the project root executes the logic in `initdb.js`.
+
+```bash
+node initdb.js
+```
+
+#### 108.2.4 new `meals.db` file appears:
+
+**Subsection Summary**
+Visual verification of the database creation. The `meals.db` file is generated in the root directory, containing the schema and initial data specified in `initdb.js`.
+
+```
+03-onwards-foodies-starting-project/
+├── app/
+│   ├── community/
+│   │   ├── page.js                     # 📄 Community page displaying social features
+│   │   └── page.module.css             # 📄 Scoped styles for the community page
+│   ├── components/
+│   │   ├── images/
+│   │   │   ├── image-slideshow.js      # 📄 Animated slideshow component
+│   │   │   └── image-slideshow.module.css
+│   │   ├── meals/
+│   │   │   ├── meal-item.js            # 📄 meal item component
+│   │   │   ├── meal-item.module.css    # 📄 Scoped styles for meal item component
+│   │   │   ├── meals-grid.js           # 📄 meals grid component
+│   │   │   ├── meals-grid.module.css   # 📄 Scoped styles for meals grid component
+│   │   └── main-header/
+│   │       ├── main-header.js          # 📄 Global navigation header
+│   │       ├── main-header.module.css
+│   │       ├── main-header-background.js
+│   │       ├── main-header-background.module.css
+│   │       ├── nav-link.js             # 📄 Individual navigation link component
+│   │       └── nav-link.module.css
+│   ├── meals/
+│   │   ├── [mealSlug]/
+│   │   │   └── page.js                 # 📄 Dynamic route for meal details
+│   │   ├── share/
+│   │   │   └── page.js                 # 📄 Page for sharing new meals
+│   │   ├── layout.js                   # 📄 Layout for meals section
+│   │   ├── page.js                     # 📄 Main meals listing page
+│   │   └── page.module.css             # 📄 Scoped styles for Main meals page
+│   ├── globals.css                     # 📄 Global application styles
+│   ├── icon.png                        # 📄 App icon
+│   ├── layout.js                       # 📄 Root application layout
+│   ├── page.js                         # 📄 Landing/Home page
+│   └── page.module.css                 # 📄 Styles for the landing page
+├── assets/                             # 📁 Static assets (images, icons)
+├── docs/
+│   └── LECTURE_STEPS.md                # 📄 This educational documentation
+├── img/                                # 📁 Screenshots for documentation
+├── public/                             # 📁 Static assets served directly
+├── jsconfig.json                       # 📄 Path aliases configuration
+├── initdb.js                           # 📄 👈🏽 ✅ initdb.js for generate a db
+├── meals.db                            # 📄 👈🏽 ✅ sqlite database
+├── next.config.js                      # 📄 Next.js configuration
+├── package.json                        # 📄 Project dependencies
+└── README.md                           # 📄 General project information
+```
+
+### 🐞 108.3 Issues:
+
+- **Missing Error Handling**: The `initdb.js` script does not include error handling (e.g., `try-catch` blocks) for database operations, which could lead to ungraceful failures if the file system is read-only or the disk is full.
+- **Manual Execution Requirement**: The database must be seeded manually using `node initdb.js`. There is no automated process (like a post-install script) to ensure the database exists before the application starts.
+- **Idempotency Concerns**: While `CREATE TABLE IF NOT EXISTS` is idempotent, running the script multiple times without a `DELETE` or `TRUNCATE` before insertion would lead to duplicate entries if the unique `slug` constraint wasn't present, or errors because of it.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Lack of `try-catch` in `initdb.js` | ⚠️ Identified | `initdb.js:167-199` |
+| Manual database seeding | ℹ️ Informational | `initdb.js` |
+| Image Path Dependency | ℹ️ Identified | `initdb.js:8,30,...` (Images must exist in `/public/images`) |
+
+### 🧱 108.4 Pending Fixes (TODO)
+
+- [ ] Implement data fetching logic in `lib/meals.js` (to be created) to load meals from `meals.db`.
+- [ ] Add basic error handling to `initdb.js` to provide better feedback during seeding.
+- [ ] Consider adding a `db:setup` script to `package.json` to automate database initialization.
+- [ ] Verify that all images referenced in `dummyMeals` exist in the `public/images` directory.
+- [ ] Address **Data Persistence**: Ensure the `meals.db` file is not tracked by Git if it contains environment-specific data, but in this case, it's used for shared developmental state.
 
 
 ---
 
-🔥 🔥 🔥 
+<br>
+<br>
 <br>
 
-## 🔧 XXX. Lesson XXX — {{TITLE_NAME}}
+🔥 🔥 🔥 
+
+<br>
+
+## 🔧 XXX. Lesson XXX — *{{TITLE_NAME}}*
 
 ### 🧠 XXX.1 Context:
 
