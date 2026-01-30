@@ -2883,6 +2883,224 @@ Visual verification of the database creation. The `meals.db` file is generated i
 - [ ] Address **Data Persistence**: Ensure the `meals.db` file is not tracked by Git if it contains environment-specific data, but in this case, it's used for shared developmental state.
 
 
+<br>
+
+## 🔧 109. Lesson 109 — *Fetching Data By Leveraging NextJS & Fullstack Capabilities*
+
+- [109. Lesson 109 — Fetching Data By Leveraging NextJS & Fullstack Capabilities](#-109-lesson-109--fetching-data-by-leveraging-nextjs--fullstack-capabilities)
+- [109.1 Context](#1091-context)
+- [109.2 Updating code/theory according the context](#1092-updating-code-theory-according-the-context)
+  - [109.2.1 In any vanilla React application, reading from the db](#10921-in-any-vanilla-react-application-reading-from-the-db)
+  - [109.2.2 Do not use Hooks in server components](#10922-do-not-use-hooks-in-server-components)
+  - [109.2.3 Create lib/meals.js file](#10923-create-libmealsjs-file)
+  - [109.2.4 Importing meals from lib/meals.js file into meals/page.js component](#10924-importing-meals-from-libmealsjs-file-into-mealspagejs-component)
+- [109.3 Issues](#1093-issues)
+- [109.4 Pending Fixes (TODO)](#1094-pending-fixes-todo)
+
+### 🧠 109.1 Context:
+
+In Next.js (with the App Router), components are **Server Components** by default. This fundamental shift allows components to directly perform server-side tasks, such as fetching data from a database, without needing an intermediate API layer or the traditional `useEffect`/`fetch` pattern used in "Vanilla React" (client-side) applications.
+
+**Key Concepts:**
+1.  **Server Components**: Components that execute on the server. They can be `async` functions, allowing them to `await` data fetching directly.
+2.  **Direct DB Access**: Because the code runs on the server, you can import and use server-side libraries (like `better-sqlite3`) directly inside your component files to query databases.
+3.  **No Client-Side Hooks**: Since Server Components don't run in the browser, you cannot use hooks like `useState` or `useEffect` inside them.
+4.  **Zero-Bundle Size**: The logic for data fetching and the DB drivers themselves are not sent to the client, reducing the JavaScript bundle size.
+
+**Advantages:**
+- **Simplified Architecture**: No need to create and maintain separate API routes for simple internal data fetching.
+- **Improved Performance**: Reduced client-side JavaScript and fewer network round-trips (the server fetches data before sending the HTML).
+- **Better SEO**: Content is rendered on the server and available in the initial HTML response.
+- **Enhanced Security**: Sensitive logic and DB credentials stay on the server.
+
+**Disadvantages/Gotchas:**
+- **No Client Interactivity**: Server Components cannot handle browser events (like clicks) or use browser APIs directly. Any interactive part must be moved to a Client Component.
+- **Console Logs**: `console.log` statements in Server Components appear in the server terminal, not the browser's developer tools.
+- **Waterfall Requests**: Nesting async components can lead to serial data fetching (waterfalls) if not handled carefully (though Next.js provides optimizations for this).
+
+**When to consider alternatives:**
+- If you need real-time updates without page reloads, consider using **Client Components** with SWR or React Query, or using **WebSockets**.
+- For data that needs to be accessed by external consumers (not just your app), traditional **API Routes** are still necessary.
+
+### ⚙️ 109.2 Updating code/theory according the context:
+
+#### **Summary**
+This section walks through the transition from the traditional client-side data fetching model to the Next.js Server Component model. It starts by demonstrating the "wrong" way (using `useEffect` in a server component), explains why it's unnecessary, and then shows how to implement a dedicated library for database access. Finally, it integrates this library into an `async` Page component to fetch and display real data.
+
+#### 109.2.1 In any `vanilla React` application, reading from the db:
+
+**Subsection Summary**
+- Demonstrates the traditional approach to data fetching using `useEffect` and `fetch`.
+- Highlights that this pattern assumes a separate backend API exists.
+- In Next.js, this code would fail or be inefficient if used inside a default Server Component because of hook rules and redundant network overhead.
+
+* Need to use `useEffect()` hook.
+* Use the `fetch()`to send the request to the backend.
+
+```jsx
+/* app/meals/page.js */
+import Link from 'next/link'
+import classes from './page.module.css'
+import MealsGrid from '../components/meals/meals-grid'
+
+export default function MealsPage(){
+  useEffect( () => {    // 👈🏽 ✅
+    fetch("")
+  }, []);   // ⚠️ 🔥
+
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meals/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}>
+        <MealsGrid meals={[]} />
+      </main>
+    </>
+  )
+}
+```
+
+#### 109.2.2 Do not use `Hooks` in server components:
+
+**Subsection Summary**
+- Explains that `useEffect` is not allowed and not needed in Server Components.
+- Emphasizes that Next.js components can reach out directly to the database.
+- Shows the removal of the client-side fetching logic in favor of a cleaner server-side approach.
+
+* In `Next.js`, it has a backend and frontend combined.
+* In `Next.js`, all component are by default a server component. Unless it is a `client` component.
+* Due to this `meals/page.js` server component, do not need `useEffect()`.
+* we can reach out directly to the database from `meals/page.js` server component.
+
+```jsx
+/* app/meals/page.js */
+import Link from 'next/link'
+import classes from './page.module.css'
+import MealsGrid from '../components/meals/meals-grid'
+
+export default function MealsPage(){
+  // useEffect( () => {
+  //   fetch("")
+  // }, []);
+
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meals/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}>
+        <MealsGrid meals={[]} />
+      </main>
+    </>
+  )
+}
+```
+
+#### 109.2.3 Create `lib/meals.js` file:
+
+**Subsection Summary**
+- Sets up a utility file for database interactions using `better-sqlite3`.
+- Implements `getMeals` as an `async` function to simulate real-world network latency with a `Promise`.
+- Explains the different methods for executing SQL queries (`all()`, `run()`, `get()`).
+
+```jsx
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  // adding an artificial delay to simulate a network request
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+/*
+- db.prepare('SELECT * FROM meals').all() => when fetching data from the database.
+- db.prepare('SELECT * FROM meals').run() => when inserting, updating or deleting data from the database.
+- db.prepare('SELECT * FROM meals').get() => when fetching a single row from the database.
+*/
+```
+
+#### 109.2.4 Importing `meals` from `lib/meals.js` file into `meals/page.js` component:
+
+**Subsection Summary**
+- Converts the `MealsPage` component into an `async` function.
+- Uses `await` to fetch the data directly from the `lib/meals.js` utility.
+- Pass the fetched `meals` data to the `MealsGrid` component for rendering.
+- Notes that restarting the development server might be required for changes to take effect.
+
+```jsx
+/* app/meals/page.js */
+import Link from 'next/link'
+import classes from './page.module.css'
+import MealsGrid from '../components/meals/meals-grid'
+import { getMeals } from '@/lib/meals';   // 👈🏽 ✅ (2)
+
+//export default function MealsPage(){
+  // useEffect( () => {
+    //   fetch("")
+    // }, []);
+    
+export default async function MealsPage(){    // 👈🏽 ✅ (1) "async"
+  const meals = await getMeals();   // 👈🏽 ✅ (2)
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meals/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}>
+        <MealsGrid meals={meals} />   {/* 👈🏽 ✅ (3) */}
+      </main>
+    </>
+  )
+}
+```
+
+* Re-start the app.
+
+![meals-grid and meal-items](../img/section03-lecture109-001.png)
+
+### 🐞 109.3 Issues:
+
+- **Missing Loading UI**: Because `getMeals()` is awaited, the page will remain blank for 2 seconds while fetching data. This creates a poor user experience.
+- **No Error Handling**: If the database query fails or the file is missing, the application will crash with a runtime error instead of showing a friendly error page.
+- **Waterfall Fetching**: If other components on this page also needed data, they would wait for `getMeals()` to finish before starting their own work.
+- **Hardcoded Delay**: The 2-second delay in `lib/meals.js` is artificial and should be removed once loading states are implemented.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Persistent Blank Screen during Fetch | ⚠️ Identified | The user sees a blank page while `await getMeals()` is executing. |
+| Potential Database Crashes | ℹ️ Low Priority | Missing `try/catch` blocks around DB operations. |
+
+### 🧱 109.4 Pending Fixes (TODO)
+
+- [ ] **Implement Loading State**: Use a `loading.js` file in the `app/meals` directory to provide instant feedback while data is being fetched.
+- [ ] **Add Error Boundaries**: Create an `error.js` file to handle potential database failures gracefully.
+- [ ] **Use Suspense for Granular Loading**: Wrap `MealsGrid` in `<Suspense>` to allow the page header to render instantly while the grid waits for data.
+- [ ] **Remove Artificial Delay**: Delete `await new Promise(...)` from `lib/meals.js` (line 7) after verifying loading states work.
+- [ ] **Add SQL Sanitization**: Ensure all future queries (especially for specific meal details) use prepared statements correctly to prevent SQL injection.
+
+
 ---
 
 <br>
