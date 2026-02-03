@@ -1276,7 +1276,7 @@ export default function Home() {
         <div>
           <div className={classes.hero}>
             <h1>NextLevel Food for NextLevel Foodies</h1>
-            <p>Tasrw & share food from all over the world</p>
+            <p>Taste & share food from all over the world</p>
           </div>
 
           <div className={classes.cta}>
@@ -1314,7 +1314,7 @@ export default function Home() {
 
 ### 🧱 103.3 Pending Fixes (TODO)
 
-- [ ] Correct the typo "Tasrw" to "Taste" in `app/page.js` (line 12).
+- [x] Correct the typo "Tasrw" to "Taste" in `app/page.js` (line 12).
 - [ ] Remove redundant paragraphs in the descriptive sections of `app/page.js`.
 - [ ] Implement an `ImageSlideshow` component to replace the placeholder `....` in `app/page.js`.
 - [ ] Add `aria-label` to the slideshow container for improved accessibility.
@@ -1486,7 +1486,7 @@ export default function Home() {
         <div>
           <div className={classes.hero}>
             <h1>NextLevel Food for NextLevel Foodies</h1>
-            <p>Tasrw & share food from all over the world</p>
+            <p>Taste & share food from all over the world</p>
           </div>
 
           <div className={classes.cta}>
@@ -1601,7 +1601,7 @@ export default function Home() {
         <div>
           <div className={classes.hero}>
             <h1>NextLevel Food for NextLevel Foodies</h1>
-            <p>Tasrw & share food from all over the world</p>
+            <p>Taste & share food from all over the world</p>
           </div>
 
           <div className={classes.cta}>
@@ -3099,6 +3099,146 @@ export default async function MealsPage(){    // 👈🏽 ✅ (1) "async"
 - [ ] **Use Suspense for Granular Loading**: Wrap `MealsGrid` in `<Suspense>` to allow the page header to render instantly while the grid waits for data.
 - [ ] **Remove Artificial Delay**: Delete `await new Promise(...)` from `lib/meals.js` (line 7) after verifying loading states work.
 - [ ] **Add SQL Sanitization**: Ensure all future queries (especially for specific meal details) use prepared statements correctly to prevent SQL injection.
+
+<br>
+
+## 🔧 110. Lesson 110 — *Adding A Loading Page*
+
+- [Lecture 110: Adding A Loading Page](#-110-lesson-110--adding-a-loading-page)
+    - [110.1 Context](#1101-context)
+    - [110.2 Updating code according the context](#1102-updating-code-according-the-context)
+        - [110.2.1 Change the `setTimeout` time in `lib/meals.js`](#11021-change-the-settimeout-time-in-libmealsjs)
+        - [110.2.2 Creating `loading.js` file](#11022-creating-loadingjs-file)
+        - [110.2.3 Adding `loading.module.css` file](#11023-adding-loadingmodulecss-file)
+    - [110.3 Issues](#1103-issues)
+    - [110.4 Pending Fixes (TODO)](#1104-pending-fixes-todo)
+
+### 🧠 110.1 Context:
+
+In Next.js, **Loading UI** is a specialized UI that is automatically shown while a route segment's content is loading. This is achieved by creating a `loading.js` file in a route folder. Next.js wraps the `page.js` component (and its children) in a React `Suspense` boundary, with the `loading.js` component as the fallback.
+
+**When to use:**
+- Use `loading.js` to provide instant feedback to the user while data is being fetched asynchronously.
+- Essential for Server Components that perform database queries or API calls that might take time.
+
+**Advantages:**
+- **Improved UX**: Users see immediate feedback (like a spinner or skeleton) instead of a blank screen or unresponsive interface.
+- **Automatic Handling**: Next.js automatically handles the Suspense boundaries, so you don't need to manually wrap components.
+- **Streaming**: The server can send the initial loading state immediately while the heavy data fetching happens in the background.
+
+**Disadvantages:**
+- **Generic Feedback**: A single `loading.js` applies to the entire route segment. If you need more granular loading states (e.g., just for a specific list), you might need to use `Suspense` manually.
+
+**Examples from the project:**
+- `app/meals/loading.js`: Displays a "Fetching meals..." message with a CSS animation while the `MealsPage` is awaiting the database query.
+
+### ⚙️ 110.2 Updating code according the context:
+
+#### **Summary**
+This section implements a loading state for the `/meals` route. First, we intentionally increase the delay in our data fetching simulation to make the loading state clearly visible. Then, we create a specialized `loading.js` file that Next.js automatically uses as a fallback UI while the page data is loading. Finally, we add CSS animations to make the loading state visually engaging.
+
+#### 110.2.1 Change the `setTimeout` time in `lib/meals.js`:
+
+**Subsection Summary**
+- Increases the artificial delay in the data fetching function from 2 seconds to 5 seconds.
+- This modification is solely for demonstration purposes to ensure the loading state is visible for a sufficient duration during development and testing.
+
+```javascript
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  // adding an artificial delay to simulate a network request
+  await new Promise((resolve) => setTimeout(resolve, 5000));    // 👈🏽 ✅
+  return db.prepare('SELECT * FROM meals').all();
+}
+```
+
+**Testing missing loading page:**
+> Steps:
+* Re-start the server
+* enter to Foodies Community first
+* then enter to Browse Meals.
+
+> Expected Result:
+* Wait for 5seg to reload this `Browse Meals` page.
+
+> Issue:
+* no loading page created; the user sees a stagnant interface or blank content until the data arrives.
+
+
+#### 110.2.2 Creating `loading.js` file:
+
+**Subsection Summary**
+- Creates the `app/meals/loading.js` file, which is a reserved filename in Next.js App Router for defining loading UI.
+- Defines a simple React component that renders a loading message.
+- Uses CSS Modules to style the loading text.
+- Next.js automatically wraps `page.js` in a Suspense boundary and shows this component while `getMeals()` is pending.
+
+```jsx
+/* app/meals/loading.js */
+import classes from './loading.module.css';     // 👈🏽 ✅
+
+export default function MealsLoadingPage(){
+  return <p className={classes.loading}>Fetching meals...</p>
+}
+```
+
+#### 110.2.3 Adding `loading.module.css` file:
+
+[Repo link](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/meals/loading.module.css)
+
+**Subsection Summary**
+- Defines the styles for the loading message.
+- Implements a keyframe animation (`loading`) that pulses the text color, providing a dynamic visual cue that the application is working.
+- Centers the text for better presentation.
+
+```css
+/* app/meals/loading.module.css */
+.loading {
+  text-align: center;
+  animation: loading 1.2s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    color: #e9e9e9;
+  }
+  50% {
+    color: #b89b84;
+  }
+  100% {
+    color: #e9e9e9;
+  }
+}
+```
+
+> Steps to verify:
+* Refresh the `/meals` page.
+
+> Expected Result:
+* You should now see the "Fetching meals..." text pulsing in the center of the screen for 5 seconds before the meals grid appears.
+
+![Loading Page](../img/sectio03-lecture110-001.png)
+
+### 🐞 110.3 Issues:
+
+- **Artificial Delay**: The 5-second delay is hardcoded and blocks the database query, making the app intentionally slow.
+- **Global Blocking**: While `loading.js` improves UX, the entire page content is blocked until the data fetch is complete (waterfall).
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Unnecessary Delay | ⚠️ Identified | `setTimeout` in `lib/meals.js` slows down the app. |
+
+### 🧱 110.4 Pending Fixes (TODO)
+
+- [ ] **Remove Artificial Delay**: Delete the `await new Promise(...)` line in `lib/meals.js` once testing of the loading state is complete.
+- [ ] **Granular Loading**: Consider using `Suspense` directly inside `page.js` to show parts of the UI (like the header) immediately while only the grid loads.
+
+
+
 
 
 ---

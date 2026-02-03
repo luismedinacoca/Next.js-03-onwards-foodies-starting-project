@@ -13,7 +13,7 @@ export default function Home() {
         <div>
           <div className={classes.hero}>
             <h1>NextLevel Food for NextLevel Foodies</h1>
-            <p>Tasrw & share food from all over the world</p>
+            <p>Taste & share food from all over the world</p>
           </div>
 
           <div className={classes.cta}>
