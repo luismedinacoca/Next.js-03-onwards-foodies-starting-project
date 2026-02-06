@@ -3569,13 +3569,98 @@ export async function getMeals() {
 
 [↑ top - Lesson 112 — Handling Errors](#-112-lesson-112--handling-errors)
 
+<br>
+
+## 🔧 113. Lesson 113 — *Handling `"Not Found"` States*
+
+- [Lecture 113: Handling `"Not Found"` States](#-113-lesson-113--handling-not-found-states)
+    - [113.1 Context](#1131-context)
+    - [113.2 Updating code according the context](#1132-updating-code-according-the-context)
+        - [113.2.1 Go to the following URL: `http://localhost:3000/my-meals`](#11321-go-to-the-following-url-httplocalhost3000my-meals)
+        - [113.2.2 Add a customize `not-found.js` file](#11322-add-a-customize-not-foundjs-file)
+    - [113.3 Issues](#1133-issues)
+    - [113.4 Pending Fixes (TODO)](#1134-pending-fixes-todo)
+
+### 🧠 113.1 Context:
+
+In Next.js, the **Not Found** state is a specific error state triggered when a user requests a route that does not exist. Next.js provides a file convention, `not-found.js`, to customize the UI for this state. This file is used to render a React component when the `notFound()` function is thrown within a route, or when a URL doesn't match any registered route.
+
+**When `not-found.js` is used:**
+- **Automatic Matching**: When a user visits a URL that clearly doesn't map to any file-system route (e.g., `/random-page`), Next.js automatically renders the nearest `not-found.js`.
+- **Programmatic Trigger**: You can trigger this state manually by calling the `notFound()` function from `next/navigation` within a page, layout, or Server Component (e.g., when fetching a specific meal ID that doesn't exist in the database).
+
+**Examples from the project:**
+- `app/not-found.js`: A specialized component created to handle global 404 errors. It displays a user-friendly message ("Not Found") instead of the default Next.js 404 page. It is wrapped by the root layout, preserving the main header and background.
+
+**Advantages:**
+- **User Experience**: Provides a branded, consistent look and feel even when users get lost.
+- **Improved SEO**: Automatically returns a 404 HTTP status code, helping search engines understand the page status.
+- **Separation of Concerns**: Keeps error handling UI logic separate from successful page rendering logic.
+- **Inheritance**: Nested `not-found.js` files can provide specific 404 pages for different sections of the app (though this project uses a global one).
+
+**Disadvantages:**
+- **Static vs Dynamic**: By default, `not-found.js` is a Server Component and doesn't accept props like `error`.
+
+**Alternatives:**
+- **Default 404**: If no `not-found.js` is created, Next.js provides a basic, unstyled default 404 page.
+
+### ⚙️ 113.2 Updating code/theory according the context:
+
+#### **Summary**
+This section demonstrates how to handle non-existent routes by replacing the default Next.js 404 page with a custom implementation. It first shows the generic default behavior when accessing an invalid URL, and then walks through creating a `not-found.js` file to provide a styled, consistent "Not Found" message that integrates seamlessly with the application's layout.
+
+#### 113.2.1 Go to the following URL: `http://localhost:3000/my-meals`
+
+**Subsection Summary**
+Demonstrates the default behavior of Next.js when navigating to an undefined route. Without a custom `not-found.js` file, Next.js renders a generic, plain "404 | This page could not be found" screen. This serves as the baseline to compare against the custom implementation.
+
+![no existent page](../img/section03-lecture113-001.png)
+
+> Generic `"No found"` page.
+
+#### 113.2.2 Add a customize `not-found.js` file:
+
+**Subsection Summary**
+Implements a custom `NotFound` component to handle 404 errors globally. The component returns a semantic `<main>` element with a header and message, styled with the `not-found` class. This file is automatically detected by Next.js and used whenever a route is not found, ensuring the error page matches the application's branding and layout (since it's wrapped by the root layout).
+
+* it covers any sibling and nested pages as `error.js` file.
+
+```jsx
+/* app/not-found.js */
+export default function NotFound(){
+  return(
+    <main className="not-found">
+      <h1>Not Found</h1>
+      <p>Unforntunatly, we could not find the requested page or resource.</p>
+    </main>
+  )
+}
+```
+
+![customize not-found page](../img/section03-lecture113-002.png)
+
+### 🐞 113.3 Issues:
+- **Typo in text**: The word "Unforntunatly" is misspelled in the `not-found.js` file.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Typo | ⚠️ Identified | `app/not-found.js:5` - "Unforntunatly" should be "Unfortunately" |
+| Missed Styles | ℹ️ Informational | Ensure `globals.css` applies styles to query selector `.not-found` |
+
+### 🧱 113.4 Pending Fixes (TODO)
+
+- [ ] Fix typo in `app/not-found.js`: Change "Unforntunatly" to "Unfortunately".
+- [ ] Verify mobile responsiveness of the "Not Found" page.
+- [ ] Address **Typos**: The `NotFound` component contains a visible typo ("Unforntunatly") in the user-facing message.
+- [ ] Address **Styling**: Verify that the `.not-found` class is properly defined in `globals.css` to ensure the component is centered and readable.
+
+[↑ top - [Lesson 113 — Handling `"Not Found"` States]](#-113-lesson-113--handling-not-found-states)
+
 ---
 
 <br>
 <br>
 <br>
-
-🔥 🔥 🔥 
 
 🔥 🔥 🔥 
 
