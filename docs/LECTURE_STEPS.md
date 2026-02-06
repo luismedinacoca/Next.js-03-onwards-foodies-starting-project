@@ -3232,14 +3232,145 @@ export default function MealsLoadingPage(){
 |---|---|---|
 | Unnecessary Delay | ⚠️ Identified | `setTimeout` in `lib/meals.js` slows down the app. |
 
+![issue to fix](../img/section03-lecture110-001.png)
+
 ### 🧱 110.4 Pending Fixes (TODO)
 
 - [ ] **Remove Artificial Delay**: Delete the `await new Promise(...)` line in `lib/meals.js` once testing of the loading state is complete.
 - [ ] **Granular Loading**: Consider using `Suspense` directly inside `page.js` to show parts of the UI (like the header) immediately while only the grid loads.
 
 
+<br>
 
+## 🔧 111. Lesson 111 — *Using Suspense & Streamed Responses For Granular Loading State Management*
 
+- [Lecture 111: Using Suspense & Streamed Responses For Granular Loading State Management](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
+    - [111.1 Context](#1111-context)
+    - [111.2 Updating code according the context](#1112-updating-code-according-the-context)
+        - [111.2.1 Refactoring `MealsPage` to use `Suspense`](#11121-refactoring-mealspage-to-use-suspense)
+        - [111.2.2 Moving Loading Styles](#11122-moving-loading-styles)
+    - [111.3 Issues](#1113-issues)
+    - [111.4 Pending Fixes (TODO)](#1114-pending-fixes-todo)
+
+### 🧠 111.1 Context:
+
+**Granular Loading State Management** is a technique to improve user experience by showing loading indicators only for the specific parts of the page that are fetching data, rather than blocking the entire page.
+
+**The Problem with `loading.js`:**
+- The `loading.js` file creates a Suspense boundary around the **entire page content**.
+- When active, the user sees *only* the loading indicator. The header, sidebar, or other static content is hidden until the data fetch completes.
+- This creates a "blocked" feeling where the application seems unresponsive or less interactive.
+
+**The Solution: React Suspense & Streamed Responses:**
+- **Suspense**: A React component that lets you declaratively "wait" for some code to load (like a data fetch) while rendering a fallback UI in its place.
+- **Streamed Responses**: Next.js (App Router) supports streaming. The server can send the static parts of the HTML (like the header) immediately, and then "stream" the dynamic content (like the meals list) as it becomes available.
+- By manually wrapping the data-fetching component in `<Suspense>`, we can show the static UI immediately and show a loading spinner *only* where the data will appear.
+
+**Key Concepts:**
+1.  **Granular Boundaries**: Defining exactly which part of the UI should wait for data.
+2.  **Fallback Prop**: The UI element (spinner, skeleton) to show while waiting.
+3.  **Refactoring for Suspension**: Splitting the page into a "Page" component (synchronous, static structure) and a "Content" component (asynchronous, data fetching).
+
+**Advantages:**
+- **Improved UX**: Users see the app shell (header, nav) instantly.
+- **Perceived Performance**: The app feels faster and more responsive.
+- **Interactivity**: Users can navigate away (e.g., click specific links) even while content is loading.
+
+**Disadvantages/Gotchas:**
+- **Refactoring Required**: Requires splitting logic into separate components.
+- **Complexity**: More code than a simple `loading.js` file.
+
+### ⚙️ 111.2 Updating code according the context:
+
+#### **Summary**
+This section documents the refactoring of the `MealsPage` to support granular loading. We move the asynchronous data fetching into a separate component (`Meals`) and use React's `Suspense` boundary in the main page component to wrap it. This allows the page title and header to render immediately while the meals data fetches in the background. We also handle the CSS migration to ensure the loading spinner is styled correctly within the page module.
+
+#### 111.2.1 Refactoring `MealsPage` to use `Suspense`:
+
+**Subsection Summary**
+- Splits the `MealsPage` into two components:
+    - `Meals`: An `async` component responsible for fetching data (`getMeals`).
+    - `MealsPage`: The main default export, which renders the static structure (header, links) and wraps `<Meals />` in a `<Suspense>` boundary.
+- Defines a fallback UI (`<p className={classes.loading}>Fetching meals...</p>`) that appears specifically in the content area while data loads.
+- This implementation enables **Streamed Responses**, sending the header HTML first and the meals data later.
+
+```jsx
+/* app/meals/page.js */
+import { Suspense } from 'react';
+import Link from 'next/link'
+import classes from './page.module.css'
+import MealsGrid from '../components/meals/meals-grid'
+import { getMeals } from '@/lib/meals';
+
+async function Meals(){
+  const meals = await getMeals();
+  return <MealsGrid meals={meals} />
+}
+
+export default function MealsPage(){
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meals/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}>
+        <Suspense fallback={<p className={classes.loading}>Fetching meals...</p>}>
+          <Meals />
+        </Suspense>
+      </main>
+    </>
+  )
+}
+```
+
+#### 111.2.2 Moving Loading Styles:
+
+**Subsection Summary**
+- Ensures the component-level loading styles are available in `page.module.css`.
+- Since we are no longer using the global `loading.js` (and its potential `loading.module.css` dependency for the whole page), we move or duplicate the `.loading` class into the page's specific CSS module to style the fallback text/spinner locally.
+
+```css
+/* app/meals/page.module.css */
+/* ... existing header styles ... */
+
+.loading {
+  text-align: center;
+  animation: loading 1.2s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    color: #e9e9e9;
+  }
+  50% {
+    color: #b89b84;
+  }
+  100% {
+    color: #e9e9e9;
+  }
+}
+```
+
+### 🐞 111.3 Issues:
+
+- **Deprecated file**: The `app/meals/loading.js` file is no longer needed for this route as we are handling loading states explicitly with `Suspense`. If left, it might still wrap the page or conflict. (Note: It currently exists as `loading-out.js` which is effectively disabled).
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| `loading.js` creates global blocking | ⚠️ Identified | N/A |
+
+### 🧱 111.4 Pending Fixes (TODO)
+
+- [ ] Delete or rename `app/meals/loading.js` if it still exists to ensure only the granular `Suspense` boundary is active.
+- [ ] Confirm that `page.module.css` contains the `.loading` class definition.
+
+[↑ top - Using Suspense & Streamed Responses](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
 
 ---
 
