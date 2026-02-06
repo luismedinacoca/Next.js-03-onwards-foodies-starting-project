@@ -3372,11 +3372,210 @@ export default function MealsPage(){
 
 [↑ top - Using Suspense & Streamed Responses](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
 
+<br>
+
+## 🔧 112. Lesson 112 — *Handling Errors*
+
+- [112. Lesson 112 — Handling Errors](#-112-lesson-112--handling-errors)
+    - [112.1 Context](#1121-context)
+    - [112.2 Updating code according the context](#1122-updating-code-according-the-context)
+        - [112.2.1 Add a new line code inside `lib/meals.js`](#11221-add-a-new-line-code-inside-libmealsjs)
+        - [112.2.2 Need to add another special file `error.js`](#11222-need-to-add-another-special-file-errorjs)
+        - [112.2.3 Add an `error.js` inside `meals` component](#11223-add-an-errorjs-inside-meals-component)
+        - [112.2.4 Adding `"use client"` in `meals/error.js` file](#11224-adding-use-client-in-mealserrorjs-file)
+        - [112.2.5 update the `lib/meals.js` file](#11225-update-the-libmealsjs-file)
+    - [112.3 Issues](#1123-issues)
+    - [112.4 Pending Fixes (TODO)](#1124-pending-fixes-todo)
+
+### 🧠 112.1 Context:
+
+In Next.js, the `error.js` file convention allows you to gracefully handle runtime errors in your application. It automatically wraps a route segment and its nested children in a **React Error Boundary**.
+
+**Key Concepts:**
+1.  **Client Component**: `error.js` must always be a Client Component (`'use client'`).
+2.  **Granularity**: You can define `error.js` files at different levels of the file system hierarchy to provide granular error UI (e.g., a specific error page for `/meals` vs. a global one for the `app`).
+3.  **Hierarchy**: An `error.js` boundary catches errors thrown from **nested** components (pages, layouts) but **not** from the layout at the same level (a layout sits "above" the error boundary of its own segment).
+
+**When to use:**
+- To show a custom error UI instead of the default crash screen when an exception occurs.
+- To allow users to recover from errors (e.g., by retrying a failed request).
+
+**Advantages:**
+- **Resilience**: Prevents the entire app from crashing; only the affected segment renders the error state.
+- **UX**: Provides meaningful feedback to the user.
+- **Flexibility**: Different parts of the app can have different error handling strategies.
+
+### ⚙️ 112.2 Updating code/theory according the context:
+
+#### **Summary**
+This section demonstrates how to implement a custom error page for the meals section. We simulate an error in the data fetching logic to trigger the error boundary. Initially, we create a standard server component which fails, then we correct it by marking it as a Client Component. Finally, we establish the error file structure and clean up the simulation code.
+
+#### 112.2.1 Add a new line code inside `lib/meals.js`:
+
+**Subsection Summary**
+Updates the data fetching logic to simulate a runtime error. This artificial error allows us to verify that our error handling UI works as expected before we encounter real failures.
+
+```js
+import sql from 'better-sqlite3';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  // adding an artificial delay to simulate a network request
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  throw new Error('Loading meals failed!');   // 👈🏽 ✅
+
+  return db.prepare('SELECT * FROM meals').all();
+}
+```
+
+![no handling error created](../img/section03-lecture112-001.png)
+
+
+#### 112.2.2 Need to add another special file `error.js`:
+
+**Subsection Summary**
+Illustrates the file structure options for placing `error.js`. Showing that error files can be placed at various levels (root, `/meals`, `/community`) to handle errors with different scopes.
+
+This `error.js` file could be in any level as you can see.
+```
+03-onwards-foodies-starting-project/
+├── app/
+│   ├── community/
+│   │   ├── error.js                    # 📄 👈🏽 ✅ Error Community page features
+│   │   ├── page.js                     # 📄 Community page displaying social features
+│   │   └── page.module.css             # 📄 Scoped styles for the community page
+│   ├── components/
+│   │   ├── images/
+│   │   │   ├── image-slideshow.js      # 📄 Animated slideshow component
+│   │   │   └── image-slideshow.module.css
+│   │   ├── meals/
+│   │   │   ├── meal-item.js            # 📄 meal item component
+│   │   │   ├── meal-item.module.css    # 📄 Scoped styles for meal item component
+│   │   │   ├── meals-grid.js           # 📄 meals grid component
+│   │   │   ├── meals-grid.module.css   # 📄 Scoped styles for meals grid component
+│   │   └── main-header/
+│   │       ├── main-header.js          # 📄 Global navigation header
+│   │       ├── main-header.module.css
+│   │       ├── main-header-background.js
+│   │       ├── main-header-background.module.css
+│   │       ├── nav-link.js             # 📄 Individual navigation link component
+│   │       └── nav-link.module.css
+│   ├── meals/
+│   │   ├── [mealSlug]/
+│   │   │   ├── error.js                # 📄 👈🏽 ✅ error dynamic route for meal details
+│   │   │   └── page.js                 # 📄 Dynamic route for meal details
+│   │   ├── share/
+│   │   │   └── page.js                 # 📄 Page for sharing new meals
+│   │   ├── layout.js                   # 📄 Layout for meals section
+│   │   ├── error.js                    # 📄 👈🏽 ✅ Main meals Error page
+│   │   ├── page.js                     # 📄 Main meals listing page
+│   │   └── page.module.css             # 📄 Scoped styles for Main meals page
+│   ├── globals.css                     # 📄 Global application styles
+│   ├── icon.png                        # 📄 App icon
+│   ├── layout.js                       # 📄 Root application layout
+│   ├── error.js                        # 📄 👈🏽 ✅ Landing/Home Error page
+│   ├── page.js                         # 📄 Landing/Home page
+│   └── page.module.css                 # 📄 Styles for the landing page
+├── assets/                             # 📁 Static assets (images, icons)
+├── docs/
+│   └── LECTURE_STEPS.md                # 📄 This educational documentation
+├── img/                                # 📁 Screenshots for documentation
+├── public/                             # 📁 Static assets served directly
+├── jsconfig.json                       # 📄 Path aliases configuration
+├── initdb.js                           # 📄 initdb.js for generate a db
+├── meals.db                            # 📄 sqlite database
+├── next.config.js                      # 📄 Next.js configuration
+├── package.json                        # 📄 Project dependencies
+└── README.md                           # 📄 General project information
+```
+
+#### 112.2.3 Add an `error.js` inside `meals` component:
+
+**Subsection Summary**
+Creates the initial implementation of the `error.js` component for the meals section. This attempt serves as a learning moment because it omits the necessary client-side directive, helping to understand why error boundaries must be client components.
+
+```jsx
+/* app/meals/error.js */
+export default function Error() {
+  return <main className="error">
+    <h1>An error occured!</h1>
+    <p>Failed to fetch meals, please try again later.</p>
+  </main>
+}
+```
+
+Still getting this error page:
+![no expected error page](../img/section03-lecture112-002.png)
+
+#### 112.2.4 Adding `"use client"` in `meals/error.js` file:
+
+**Subsection Summary**
+Corrects the error component by adding the `"use client"` directive. This step enforces the requirement that Next.js error boundaries must be Client Components to function correctly within the React accessibility tree.
+
+```jsx
+/* app/meals/error.js */
+"use client"     // 👈🏽 ✅ 
+export default function Error() {
+  return <main className="error">
+    <h1>An error occured!</h1>
+    <p>Failed to fetch meals, please try again later.</p>
+  </main>
+}
+```
+
+![expected error page](../img/section03-lecture112-003.png)
+
+* catch any error with that component.
+* including errors that happen on the client side.
+
+
+#### 112.2.5 update the `lib/meals.js` file:
+
+**Subsection Summary**
+Reverts the artificial error simulation by commenting out the `throw` statement. This restores the application's normal functionality while keeping the test code available for future reference or testing.
+
+```js
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  // adding an artificial delay to simulate a network request
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  //throw new Error('Loading meals failed!');    // 👈🏽 ✅ in order to know how to handle errors
+
+  return db.prepare('SELECT * FROM meals').all();
+}
+```
+
+
+### 🐞 112.3 Issues:
+
+| Issue                        | Status          | Log/Error                                                                 |
+|------------------------------|-----------------|---------------------------------------------------------------------------|
+| Basic Error UI               | ⚠️ Needs Improvement | The current error page effectively catches the error but lacks styling and interactivity (e.g., a "Retry" button). |
+| Scope                        | ℹ️ Informational | This specific `error.js` only handles errors within the `/meals` route segment. |
+
+### 🧱 112.4 Pending Fixes (TODO)
+
+- [ ] Add `reset` prop to the Error component to allow users to try recovering from the error.
+- [ ] Improve styling of the error message to match the overall design system.
+- [ ] Pass the `error` prop to the component to display more specific error messages (if safe/appropriate).
+- [ ] Address **Hardcoded Error Message**: The error UI displays a generic "Failed to fetch meals" message. It should ideally display relevant information from the actual error caught, or at least be more descriptive.
+
+[↑ top - Lesson 112 — Handling Errors](#-112-lesson-112--handling-errors)
+
 ---
 
 <br>
 <br>
 <br>
+
+🔥 🔥 🔥 
 
 🔥 🔥 🔥 
 
@@ -3395,6 +3594,12 @@ export default function MealsPage(){
 ```
 
 #### XXX.2.2
+```jsx
+/*  */
+
+```
+
+#### XXX.2.3
 ```jsx
 /*  */
 
