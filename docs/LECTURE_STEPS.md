@@ -3656,6 +3656,407 @@ export default function NotFound(){
 
 [↑ top - [Lesson 113 — Handling `"Not Found"` States]](#-113-lesson-113--handling-not-found-states)
 
+<br>
+
+## 🔧 114. Lesson 114 — *Loading and Rendering Meal Details via Dynamic Routes & Route Parameters*
+
+- [Lecture 114: Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114---loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
+    - [114.1 Context](#1141-context)
+    - [114.2 Updating code according the context](#1142-updating-code-according-the-context)
+        - [114.2.1 Create `page.module.css` for meal details](#11421-create-pagemodulecss-for-meal-details)
+        - [114.2.2 Modify/Update the `/meals/[mealSlug]/page.js` file](#11422-modifyupdate-the-mealsmealslugpagejs-file)
+        - [114.2.3 Add the `getMeal(slug)` function inside `lib/meals.js` file](#11423-add-the-getmealslug-function-inside-libmealsjs-file)
+        - [114.2.4 Import `getMeal()` from `lib/meals.js` inside `/[mealSlug]/page.js`](#11424-import-getmeal-from-libmealsjs-inside-mealslugpagejs)
+        - [114.2.5 Completing all `meal` properties](#11425-completing-all-meal-properties)
+    - [114.3 Issues](#1143-issues)
+    - [114.4 Pending Fixes (TODO)](#1144-pending-fixes-todo)
+
+### 🧠 114.1 Context:
+
+To display the details of a specific meal, we need to leverage Next.js **Dynamic Routes**. When a user clicks a meal on the grid, they navigate to a URL like `/meals/burger`, where `burger` is the dynamic segment (`slug`).
+
+**Key Concepts:**
+1.  **Dynamic Segments & Params**: In the App Router, folder names in brackets (e.g., `[mealSlug]`) create dynamic routes. The value of this segment is passed to the `page.js` component via the `params` prop.
+2.  **Server-Side Data Fetching**: Since `page.js` is a Server Component, we can directly fetch the specific meal data from the database using its slug.
+3.  **Rendering HTML Content**: Meal instructions are stored as HTML/text with line breaks. We use React's `dangerouslySetInnerHTML` to render this content, converting newlines to `<br />` tags.
+
+**Security Logic:**
+-   **SQL Injection Prevention**: We use `better-sqlite3`'s prepared statements (`?`) to safely insert the slug into the query.
+-   **XSS Protection**: `dangerouslySetInnerHTML` is used with trusted content from our database.
+
+### ⚙️ 114.2 Updating code according the context:
+
+#### **Summary**
+This section focuses on implementing the dynamic meal details page. By leveraging dynamic route segments (`[mealSlug]`), we enable the application to fetch and render content specific to each meal.
+-   **Purpose**: To display detailed information for a selected meal, including its image, summary, creator, and instructions.
+-   **Process**: It covers creating scoped styles, updating the page component to read route parameters, implementing secure data fetching logic with prepared statements, and rendering HTML content safely.
+-   **Key Outcome**: A fully functional details page that dynamically updates based on the URL.
+
+#### 114.2.1 Create `page.module.css` for meal details:
+
+**Subsection Summary**
+-   Establishes a responsive design for the meal details page using CSS Modules (`page.module.css`).
+-   Implements a flexbox-based header layout to align the meal image and summary text.
+-   Adds custom keyframe animations (`fade-slide-in`) to introduce elements smoothly from different directions.
+
+[page.module.css code](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/meals/%5BmealSlug%5D/page.module.css)
+
+```css
+/* app/meals/[mealSlug]/page.module.css */
+.header {
+  display: flex;
+  padding: 2rem 1rem;
+  gap: 3rem;
+  margin: auto;
+  max-width: 80rem;
+}
+
+.image {
+  position: relative;
+  width: 30rem;
+  height: 20rem;
+}
+
+.header img {
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.5);
+  animation: fade-slide-in-from-left 1s ease-out forwards;
+}
+
+.headerText {
+  padding: 0.5rem 1rem 0 1rem;
+  color: #ddd6cb;
+  max-width: 40rem;
+  animation: fade-slide-in-from-right 1s ease-out forwards;
+}
+
+.headerText h1 {
+  margin: 0;
+  font-size: 3.5rem;
+  text-transform: uppercase;
+  font-family: 'Montserrat', sans-serif;
+  text-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.5);
+}
+
+.creator {
+  font-size: 1.5rem;
+  color: #cfa69b;
+  font-style: italic;
+}
+
+.creator a {
+  background: linear-gradient(90deg, #f9572a, #ff8a05);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.creator a:hover,
+.creator a:active {
+  background: linear-gradient(90deg, #f9572a, #ff8a05);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 18px rgba(248, 190, 42, 0.8);
+}
+
+.summary {
+  font-size: 1.5rem;
+}
+
+.instructions {
+  font-size: 1.25rem;
+  line-height: 1.5;
+  background-color: #6e6464;
+  color: #13120f;
+  border-radius: 8px;
+  box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.5);
+  padding: 2rem;
+  max-width: 60rem;
+  margin: 2rem auto;
+  animation: fade-slide-in-from-bottom 1s ease-out forwards;
+}
+
+@keyframes fade-slide-in-from-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-slide-in-from-right {
+  0% {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-slide-in-from-bottom {
+  0% {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+```
+
+#### 114.2.2 Modify/Update the `/meals/[mealSlug]/page.js` file:
+
+**Subsection Summary**
+-   Initializes the `MealDetailsPage` component as a Server Component.
+-   Demonstrates accessing the dynamic route parameter (`mealSlug`) via the `params` prop.
+-   Sets up a structural skeleton with placeholder text to verify the routing and layout before integrating the backend data.
+
+```javascript
+/* app/meals/[mealSlug]/page.js */
+import classes from './page.module.css'
+import Image from 'next/image'
+
+export default function MealDetailsPage({ params }) {
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>TITLE</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${'EMAIL'}`}>NAME</a>
+          </p>
+          <p className={classes.summary}>SUMMARY</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+          __html: `...`
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+#### 114.2.3 Add the `getMeal(slug)` function inside `lib/meals.js` file:
+
+**Subsection Summary**
+-   Extends the `lib/meals.js` utility with a `getMeal` function for fetching single records.
+-   Uses the strict `.get()` method from `better-sqlite3` to ensure only one row is returned.
+-   Implements a prepared statement (`?`) to securely handle the slug input, preventing SQL injection vulnerabilities.
+
+```javascript
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  // adding an artificial delay to simulate a network request
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  //throw new Error('Loading meals failed!');    // 👈🏽 ✅ in order to know how to handle errors
+
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+export function getMeal(slug){    // 👈🏽 ✅
+  //return db.prepare('SELECT * FROM meals WHERE slug = ' + slug) // this is not safe, it is vulnerable to SQL injection
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
+}
+```
+
+#### 114.2.4 Import `getMeal()` from `lib/meals.js` inside `/[mealSlug]/page.js`:
+
+**Subsection Summary**
+-   Imports the `getMeal` function to fetch data directly within the Server Component.
+-   Retrieves the specific meal data using the `params.mealSlug` value.
+-   Validates the data connection by rendering the meal's title dynamically.
+
+```javascript
+/* app/meals/[mealSlug]/page.js */
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+
+export default function MealDetailsPage({ params }) {
+  const meal = getMeal(params.mealSlug) // Fetch meal using the slug from params
+
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${'EMAIL'}`}>NAME</a>
+          </p>
+          <p className={classes.summary}>SUMMARY</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: `...`,
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+> note:
+
+`params` is important in Next.js App Router dynamic routes because it is the **ONLY** official way to receive the dynamic parts of the URL.
+
+> Correct modern patterns (App Router):
+```jsx
+// 1. Most common & recommended
+export default function MealDetailsPage({ params }) {
+  const slug = params.mealSlug;
+  const meal = getMeal(slug);
+  // ...
+}
+```
+
+```jsx
+// 2. You can also destructure directly (very clean)
+export default function MealDetailsPage({ params: { mealSlug } }) {
+  const meal = getMeal(mealSlug);
+  // ...
+}
+```
+
+```jsx
+// 3. If you have multiple dynamic segments
+// app/blog/[category]/[slug]/page.js
+export default function BlogPostPage({ params }) {
+  // params = { category: "...", slug: "..." }
+}
+```
+
+Besides:
+| URL visited by user       | Folder structure              | What Next.js gives you                     | How you access the value |
+|---------------------------|-------------------------------|--------------------------------------------|---------------------------|
+| `/meals/pasta-carbonara`  | `app/meals/[mealSlug]/page.js`| `{ mealSlug: "pasta-carbonara" }`          | `params.mealSlug`         |
+| `/meals/ceviche-peruano`  | same                          | `{ mealSlug: "ceviche-peruano" }`          | `params.mealSlug`         |
+| `/meals/asado-argentino`  | same                          | `{ mealSlug: "asado-argentino" }`          | `params.mealSlug`         |
+
+
+⚠️ In order to avoid an error, between this `<p></p>` HTML code must nothing.
+
+#### 114.2.5 Completing all `meal` properties:
+
+**Subsection Summary**
+-   Completes the UI by rendering the meal image, creator details, and summary.
+-   Uses `dangerouslySetInnerHTML` to render the HTML-formatted instructions stored in the database.
+-   Applies a regex replacement (`.replace(/\n/g, '<br />')`) to ensure proper line breaking in the rendered HTML.
+
+```javascript
+/* app/meals/[mealSlug]/page.js */
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+
+export default function MealDetailsPage({ params }) {
+  const meal = getMeal(params.mealSlug)
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image src={meal.image} alt={meal.title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${meal.creator_email}`}>{meal.creator}</a>
+          </p>
+          <p className={classes.summary}>{meal.summary}</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: meal.instructions.replace(/\n/g, '<br />'),
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+> Suggestion:
+
+Actually, in Next.js App Router with React Server Components, data fetching functions should be async even if the database library is synchronous, because:
+
+```ts
+// lib/meals.ts
+export async function getMeal(slug: string) {
+  // Even if db is synchronous, make the function async
+  // for consistency with other data fetching
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug);
+}
+
+// page.tsx
+export default async function MealDetailsPage({ params }: { params: { mealSlug: string } }) {
+  const meal = await getMeal(params.mealSlug);
+  // ... rest of component
+}
+```
+
+
+This pattern allows Next.js to properly handle:
+* Streaming
+* Suspense boundaries
+* Error boundaries
+* Loading states
+
+
+### 🐞 114.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Use of `dangerouslySetInnerHTML` | ℹ️ Informational | Potential XSS risk if data is unchecked. Here it's safe because the DB is our own trusted source. |
+| Missing `"Not Found"` handling | ⚠️ Identified | Crashes if slug is invalid because `getMeal` returns `undefined` and we try to access `meal.title`. |
+| Blocking Data Fetch | ℹ️ Informational | The synchronous DB call blocks the main thread, potentially affecting performance if the DB is slow. |
+
+### 🧱 114.4 Pending Fixes (TODO)
+
+- [ ] Implement `not-found.js` to handle invalid IDs/slugs gracefully.
+- [ ] Add loading state (`loading.js`) to handle data fetch delays.
+- [ ] Implement `generateMetadata` for dynamic SEO titles.
+
+[↑ top - Lesson 114 — Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114--loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
+
+
+
+
+
+
+
+
+
+
 ---
 
 <br>
@@ -3672,7 +4073,7 @@ export default function NotFound(){
 
 ### ⚙️ XXX.2 Updating code/theory according the context:
 
-#### XXX.2.1
+#### XXX.2.1 
 ```jsx
 /*  */
 
@@ -3685,6 +4086,12 @@ export default function NotFound(){
 ```
 
 #### XXX.2.3
+```jsx
+/*  */
+
+```
+
+#### XXX.2.4
 ```jsx
 /*  */
 
