@@ -1,11 +1,15 @@
 // localhost:3000/meals/some-meals
+import { notFound } from 'next/navigation'
 import classes from './page.module.css'
 import Image from 'next/image'
 import { getMeal } from '@/lib/meals'
-
 export default function MealDetailsPage({ params }) {
   //const meal = getMeal(slug)
   const meal = getMeal(params.mealSlug)
+
+  if(!meal) {
+    return notFound();
+  }
   return (
     <>
       <header className={classes.header}>

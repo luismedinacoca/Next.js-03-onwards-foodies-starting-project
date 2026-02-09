@@ -4049,6 +4049,175 @@ This pattern allows Next.js to properly handle:
 [↑ top - Lesson 114 — Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114--loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
 
 
+<br>
+
+## 🔧 115. Lesson 115 — *Throwing Not Found Errors For Individual Meals*
+
+- [Lecture 115: Throwing Not Found Errors For Individual Meals](#-115-lesson-115---throwing-not-found-errors-for-individual-meals)
+    - [115.1 Context](#1151-context)
+    - [115.2 Updating code according the context](#1152-updating-code-according-the-context)
+        - [115.2.1 When a non-existent meal url happen](#11521-when-a-non-existent-meal-url-happen)
+        - [115.2.2 Adding a validation by unexistent meal](#11522-adding-a-validation-by-unexistent-meal)
+        - [115.2.3 Customize the `not-found.js` file](#11523-customize-the-not-foundjs-file)
+        - [115.2.4 Comparative aspects between `notFound()` method and `not-found.js` file/component](#11524-comparative-aspects-between-notfound-method-and-not-foundjs-filecomponent)
+    - [115.3 Issues](#1153-issues)
+    - [115.4 Pending Fixes (TODO)](#1154-pending-fixes-todo)
+
+### 🧠 115.1 Context:
+
+When users navigate to a dynamic route like `/meals/ceviche-peruano` (a meal that does not exist in the database), the application crashes because the code tries to access properties such as `meal.title` on an `undefined` value returned by `getMeal()`. To handle this gracefully, Next.js provides the **`notFound()`** function from `next/navigation` along with the **`not-found.js`** special file convention.
+
+**Key Concepts:**
+1. **`notFound()` function**: A Next.js utility imported from `next/navigation`. When called, it throws a special internal error that immediately stops rendering the current route segment and triggers the nearest `not-found.js` boundary.
+2. **`not-found.js` file**: A file-system convention in the App Router. It defines the fallback UI that renders when `notFound()` is called or when a route does not match any segment. It can be placed at the root `app/` level (global) or inside specific route segments for scoped behavior.
+3. **Guard clause pattern**: The typical pattern is to fetch data first, then check if the result is falsy (`null` or `undefined`), and call `notFound()` as an early return before attempting to render.
+4. **HTTP 404 status**: When `notFound()` is triggered on a non-streamed response, Next.js sends a `404` HTTP status code and includes a `<meta name="robots" content="noindex" />` tag for SEO.
+
+**Advantages:**
+- Prevents runtime crashes when accessing properties on `undefined` data.
+- Provides a clean, user-friendly error page instead of an application error.
+- Automatically sets the correct HTTP 404 status for search engines.
+- Supports segment-level customization — each route can have its own `not-found.js`.
+- Works seamlessly with layouts — parent layouts remain mounted when the not-found boundary renders.
+
+**Disadvantages / Gotchas:**
+- A single root-level `not-found.js` handles **all** 404s globally, which may not provide specific enough messaging per route unless segment-level files are added.
+- In streamed responses (RSC payload), the HTTP status may be `200` instead of `404` because headers are already sent before the not-found condition is detected.
+- Calling `notFound()` inside `try/catch` blocks can accidentally catch the thrown internal error — always call it **outside** of try/catch.
+
+**When to Consider Alternatives:**
+- If you need to show a contextual inline message (e.g. "No results found") rather than replacing the entire page, use conditional rendering instead of `notFound()`.
+- For API routes / Route Handlers, returning a `NextResponse` with status 404 is more appropriate than calling `notFound()`.
+- If the data fetch is async and might be slow, consider wrapping the page in a `<Suspense>` boundary with a `loading.js` to handle the loading state before checking for not-found.
+
+### ⚙️ 115.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section addresses the crash that occurs when navigating to a non-existent meal slug (e.g. `/meals/ceviche-peruano`) by importing and calling the `notFound()` function from `next/navigation`.
+- A guard clause is added in `app/meals/[mealSlug]/page.js` right after the `getMeal()` call: if the result is falsy, `notFound()` is invoked to stop rendering.
+- The root `app/not-found.js` file is customized with a styled message so users see a friendly 404 page instead of a raw error.
+- A comparison table clarifies the relationship between the `notFound()` runtime function and the `not-found.js` file convention.
+
+#### 115.2.1 When a non-existent meal url happen:
+
+**Subsection Summary**
+- Demonstrates the problem: navigating to a URL like `http://localhost:3000/meals/ceviche-peruano` causes a runtime crash because `getMeal()` returns `undefined` and the component tries to access `meal.title`.
+- The screenshot shows the unhandled error screen that Next.js displays in development mode.
+
+* url: `http://localhost:3000/meals/ceviche-peruano`
+
+![non exisntent meal](../img/section03-lecture115-001.png)
+
+#### 115.2.2 Adding a validation by unexistent meal:
+
+**Subsection Summary**
+- Adds a guard clause to `app/meals/[mealSlug]/page.js` that checks if `meal` is falsy immediately after calling `getMeal(params.mealSlug)`.
+- If no meal is found, `notFound()` from `next/navigation` is called, which throws an internal error and renders the nearest `not-found.js` boundary.
+- This prevents the crash by short-circuiting the component before it tries to access properties on `undefined`.
+- The screenshot confirms the not-found UI now renders instead of the crash.
+
+```jsx
+/* app/meals/[mealSlug]/page.js */
+import { notFound } from 'next/navigation'
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+export default function MealDetailsPage({ params }) {
+  //const meal = getMeal(slug)
+  const meal = getMeal(params.mealSlug)
+
+  if(!meal) {   // 👈🏽 ✅
+    return notFound();
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image src={meal.image} alt={meal.title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${meal.creator_email}`}>{meal.creator}</a>
+          </p>
+          <p className={classes.summary}>{meal.summary}</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: meal.instructions.replace(/\n/g, '<br />'),
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+![](../img/section03-lecture115-002.png)
+
+#### 115.2.3 Customize the `not-found.js` file:
+
+**Subsection Summary**
+- Customizes the root-level `app/not-found.js` file to display a user-friendly "Meal not found" message.
+- Uses the `.not-found` CSS class already defined in `app/globals.css` (which applies centered layout, gradient heading, and styled paragraph text).
+- This component replaces the default Next.js 404 page whenever `notFound()` is triggered from any route.
+- The screenshot shows the styled not-found page rendering correctly.
+
+```jsx
+/* app/not-found.js */
+export default function NotFound(){
+  return(
+    <main className="not-found">
+      <h1>Meal not found</h1>
+      <p>Unforntunatly, we could not find the requested page or resource.</p>
+    </main>
+  )
+}
+```
+
+![](../img/section03-lecture115-003.png)
+
+#### 115.2.4 Comparative aspects between `notFound()` method and `not-found.js` file/component:
+
+**Subsection Summary**
+- Provides a side-by-side comparison table between the `notFound()` runtime function and the `not-found.js` file convention.
+- Clarifies that `notFound()` is the **trigger** (called programmatically to signal a 404) while `not-found.js` is the **UI** (the component that renders when triggered).
+- Covers aspects like HTTP status behavior, SEO implications, typical usage patterns, and how they work together in the App Router.
+
+| Aspect                        | `notFound()` function                                      | `not-found.js` / `not-found.tsx` file                              |
+|-------------------------------|------------------------------------------------------------|--------------------------------------------------------------------|
+| **What it is**                | Runtime function you call manually                         | File-system convention (special file)                              |
+| **Purpose**                   | Actively signal "this resource doesn't exist"              | Defines what UI to show when not-found is triggered                |
+| **Where you write it**        | Inside `page.tsx`, `layout.tsx`, Server Components, Route Handlers | Usually `app/not-found.tsx` (global) or `app/blog/not-found.tsx` (segment-specific) |
+| **How it works**              | Throws special internal error → stops rendering current segment | Renders **instead of** the failing segment (keeps parent layouts) |
+| **When it triggers**          | You call it explicitly (e.g. item not found in DB)         | • When `notFound()` is called<br>• When route doesn't exist at all (root level only) |
+| **HTTP status**               | 404 (non-streamed responses)<br>200 (streamed / RSC payload) | Same behavior (depends on streaming)                               |
+| **SEO behavior**              | Adds `<meta name="robots" content="noindex" />`            | Same (inherited from `notFound()`)                                 |
+| **Typical usage**             | Dynamic routes, data fetching checks                       | Custom "Page not found" design                                     |
+| **Can exist without the other?** | Yes — but ugly default Vercel/Next 404                  | Yes — but only shows for unmatched routes (not when you call `notFound()`) in older versions; now works together |
+
+### 🐞 115.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Typo "Unforntunatly" in not-found message | ⚠️ Identified | `app/not-found.js:5` — should be "Unfortunately" |
+| Root `not-found.js` has meal-specific text | ℹ️ Informational | `app/not-found.js:4` — "Meal not found" is too specific for a global 404 page. Consider a generic message like "Page not found" or create a segment-level `not-found.js` for meals. |
+| No segment-level `not-found.js` for meals | ℹ️ Low Priority | A `app/meals/[mealSlug]/not-found.js` would allow a meal-specific 404 message while keeping the global `not-found.js` generic. |
+
+### 🧱 115.4 Pending Fixes (TODO)
+
+- [ ] Fix typo in `app/not-found.js:5` — change `"Unforntunatly"` to `"Unfortunately"`.
+- [ ] Consider making the root `app/not-found.js` generic (e.g. "Page not found") and creating a segment-level `app/meals/[mealSlug]/not-found.js` with meal-specific messaging.
+- [ ] Add `generateMetadata` to `app/meals/[mealSlug]/page.js` to provide dynamic `<title>` and handle the not-found case in metadata as well.
+- [ ] Consider converting `getMeal()` in `lib/meals.js:16-19` to an `async` function for consistency with `getMeals()` and to support Suspense / streaming patterns.
+
+[↑ top - Throwing Not Found Errors For Individual Meals](#-115-lesson-115---throwing-not-found-errors-for-individual-meals)
+
+
+
 
 
 
