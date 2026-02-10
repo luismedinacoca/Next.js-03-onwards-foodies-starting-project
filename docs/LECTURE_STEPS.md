@@ -4178,7 +4178,7 @@ export default function NotFound(){
 }
 ```
 
-![](../img/section03-lecture115-003.png)
+![custom not-found](../img/section03-lecture115-003.png)
 
 #### 115.2.4 Comparative aspects between `notFound()` method and `not-found.js` file/component:
 
@@ -4199,6 +4199,66 @@ export default function NotFound(){
 | **Typical usage**             | Dynamic routes, data fetching checks                       | Custom "Page not found" design                                     |
 | **Can exist without the other?** | Yes — but ugly default Vercel/Next 404                  | Yes — but only shows for unmatched routes (not when you call `notFound()`) in older versions; now works together |
 
+
+#### 115.2.5 Difference between `return noFound()` or  `noFound()` code:
+
+> 1. ✅ Version 1 (recommended)
+```ts
+if (!meal) {
+  return notFound();
+}
+```
+
+Why this is better:
+* Clearly communicates: “we stop rendering here”
+* Reads like normal control flow
+* Matches official Next.js docs
+* Helps TypeScript and humans understand intent
+
+
+> 2. ⚠️ Version 2 (works, but misleading)
+```ts
+if (!meal) {
+  notFound();
+}
+```
+
+This:
+* Still works ✅
+* But looks like execution might continue
+* Is semantically confusing
+* Can mislead readers into thinking it’s just a function call
+
+Example illusion:
+```ts
+if (!meal) {
+  notFound();
+}
+return <div>{meal.title}</div>; // looks reachable, but isn't
+```
+
+> 3. Mental model 🧠
+
+Think of notFound() as:
+> 💣 “Abort rendering and show 404 page”
+
+So writing:
+```ts
+return notFound();
+```
+means:
+> “Stop here and trigger the 404”
+
+which is exactly what you want to express.
+
+| Version             | Works | Clear | Idiomatic |
+| ------------------- | ----- | ----- | --------- |
+| `return notFound()` | ✅     | ✅     | ✅ (best) |
+| `notFound()`        | ✅     | ❌     | ⚠️        |
+
+
+
+
 ### 🐞 115.3 Issues:
 
 | Issue | Status | Log/Error |
@@ -4218,6 +4278,268 @@ export default function NotFound(){
 
 
 
+<br>
+
+## 🔧 116. Lesson 116 — *Getting Started with the **"Share Meal"** Form*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [116. Lesson 116 — *Getting Started with the "Share Meal" Form*](#-116-lesson-116---getting-started-with-the-share-meal-form)
+- [116.1 Context](#1161-context)
+- [116.2 Updating code according the context](#1162-updating-code-according-the-context)
+  - [116.2.1 Create `page.module.css` file](#11621-create-pagemodulecss-file)
+  - [116.2.2 Update the `meals/share/page.js` file](#11622-update-the-mealssharepagejs-file)
+- [116.3 Issues](#1163-issues)
+- [116.4 Pending Fixes (TODO)](#1164-pending-fixes-todo)
+
+### 🧠 116.1 Context:
+
+This lesson introduces the **"Share Meal"** form — the first user-facing data-entry feature of the Foodies application. The form allows users to submit a new meal by providing their name, email, a meal title, a short summary, cooking instructions, and (eventually) an image. At this stage, the form is **purely presentational**: it renders the HTML structure and applies CSS Module styles, but no submission logic, validation, or server action is wired up yet.
+
+**Key Concepts:**
+1. **CSS Modules in Next.js**: Styles are scoped to the component by importing a `*.module.css` file. Class names are accessed as properties of the imported object (e.g. `classes.header`), which prevents naming collisions across the application.
+2. **Semantic HTML forms**: The form uses native HTML elements (`<form>`, `<label>`, `<input>`, `<textarea>`) with `htmlFor`/`id` associations and the `required` attribute for built-in browser validation.
+3. **Layout with CSS Flexbox**: The `.row` class uses `display: flex` with `gap` to place the "Your name" and "Your email" fields side by side in a responsive row.
+4. **Gradient text effect**: The `.highlight` class applies a `linear-gradient` background clipped to the text, creating the signature orange gradient text used throughout the app.
+5. **Placeholder for future component**: The literal text `IMAGE PICKER` in the JSX serves as a placeholder that will be replaced by a custom image upload component in a later lesson.
+
+**Advantages:**
+- CSS Modules provide automatic scoping — no risk of style leaks between pages or components.
+- Native HTML form elements give free browser validation (required fields, email format) without any JavaScript.
+- The form structure is clean and semantic, making it easy to layer on server actions or client-side logic later.
+- Consistent use of the project's design language (dark theme, orange gradients, Montserrat font) keeps the UI cohesive.
+
+**Disadvantages / Gotchas:**
+- The form currently has **no submit handler** — pressing "Share Meal" triggers a full-page GET request (default form behavior), which simply reloads the page.
+- The `IMAGE PICKER` text is rendered as visible content in the DOM, which is not ideal for production — it should be a component or at least wrapped in a comment.
+- No `aria-describedby` or custom error messages are provided — relying solely on the browser's native validation tooltips, which vary in style and wording across browsers.
+- The `.actions button` rule declares `border` twice (`border: 0` and then `border: none`), which is redundant.
+- No `<meta>` or page title is set for the `/meals/share` route — it will inherit the root layout title.
+
+**When to Consider Alternatives:**
+- If the form grows significantly in complexity (many conditional fields, multi-step wizard), consider a form library like `react-hook-form` or `formik` instead of managing raw HTML form state.
+- For real-time inline validation feedback, you would need client-side JavaScript — making this a Client Component (`'use client'`) or extracting the form into a separate Client Component.
+- If you need to support file uploads with preview, drag-and-drop, and progress indicators, a dedicated upload component (or library like `react-dropzone`) is more appropriate than a plain `<input type="file">`.
+
+### ⚙️ 116.2 Updating code/theory according the context:
+
+- [page.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/meals/share/page.module.css)
+- [page.js](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/app/meals/share/page.js)
+
+#### **Summary**
+- This section sets up the visual foundation of the "Share Meal" page by creating a CSS Module file and updating the page component.
+- A new `page.module.css` file is created with styles for the header, form layout, inputs, textarea, gradient highlight text, row layout, and submit button — matching the dark theme used across the application.
+- The `meals/share/page.js` component is updated to import these CSS Module classes and render a complete HTML form with fields for name, email, title, summary, and instructions, plus a placeholder for a future image picker component.
+- The two subsections are sequential: first the styles are defined (116.2.1), then the component consumes them (116.2.2).
+
+#### 116.2.1 Create `page.module.css` file:
+
+**Subsection Summary**
+- Creates the `app/meals/share/page.module.css` file with all the scoped styles needed for the share meal page.
+- Defines `.header` for page-level spacing and text color, `.highlight` for the gradient text effect on "favorite meal", and `.main` for the content container.
+- The `.form` block limits form width to `50rem` and styles all `label`, `input`, and `textarea` elements with the dark theme palette (`#1c2027` background, `#ddd6cb` text, `#b3aea5` label color).
+- The `.row` class uses Flexbox to lay out the name and email fields side by side.
+- The `.actions` class right-aligns the submit button, which has an orange gradient background, hover/focus states, and disabled styles for future use.
+
+```css
+/* app/meals/share/page.module.css */
+.header {
+  gap: 3rem;
+  margin: 3rem auto 5rem auto;
+  width: 90%;
+  max-width: 75rem;
+  color: #ddd6cb;
+  font-size: 1.5rem;
+}
+
+.header h1 {
+  font-family: 'Montserrat', sans-serif;
+}
+
+.highlight {
+  background: linear-gradient(90deg, #f9572a, #ff8a05);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.main {
+  width: 90%;
+  max-width: 75rem;
+  margin: 3rem auto;
+  color: white;
+}
+
+.form {
+  max-width: 50rem;
+}
+
+.form label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-family: 'Montserrat', sans-serif;
+  text-transform: uppercase;
+  color: #b3aea5;
+  font-weight: bold;
+}
+
+.form input,
+.form textarea {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #454952;
+  background: #1c2027;
+  font-size: 1.25rem;
+  font-family: 'Montserrat', sans-serif;
+  color: #ddd6cb;
+}
+
+.form input:focus,
+.form textarea:focus {
+  outline-color: #f99f2a;
+  background-color: #1f252d;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+}
+
+.row p {
+  width: 100%;
+}
+
+.actions {
+  text-align: right;
+}
+
+.actions button {
+  border: 0;
+  padding: 0.75rem 2rem;
+  background: linear-gradient(90deg, #f9572a, #ff9b05);
+  border: none;
+  color: #ffffff;
+  border-radius: 2px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.25rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.actions button:hover,
+.actions button:focus {
+  background: linear-gradient(90deg, #fd4715, #f9b241);
+}
+
+.actions button:disabled,
+.actions button:hover:disabled,
+.actions button:focus:disabled {
+  background: #ccc;
+  color: #979797;
+  cursor: not-allowed;
+}
+```
+
+#### 116.2.2 Update the `meals/share/page.js` file:
+
+**Subsection Summary**
+- Updates the `app/meals/share/page.js` component to import and use the CSS Module classes defined in the previous step.
+- Renders a `<header>` with the page title ("Share your favorite meal") featuring the gradient highlight, followed by a `<main>` section containing the full form.
+- The form includes: a flex row with name and email inputs, then title, short summary, instructions (textarea), an `IMAGE PICKER` placeholder, and a "Share Meal" submit button.
+- All inputs use `htmlFor`/`id` associations and the `required` attribute for native browser validation.
+- The screenshot confirms the rendered form matches the dark-themed design with orange accents.
+
+```jsx
+/* app/meals/share/page.js */
+import classes from './page.module.css';
+
+export default function ShareMealPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form}>
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          IMAGE PICKER
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+![share meal page](../img/section03-lecture116-001.png)
+
+
+### 🐞 116.3 Issues:
+
+- **Duplicate `border` declaration**: The `.actions button` rule sets `border: 0` and then `border: none` — the second declaration overrides the first, making it redundant.
+- **Bare text placeholder in JSX**: The `IMAGE PICKER` text is rendered as visible DOM content instead of being a component or an HTML comment — it appears on the page as literal text.
+- **No form submission handler**: The form has no `action` attribute or `onSubmit` handler — submitting it triggers a default GET request that reloads the page.
+- **Missing accessibility enhancements**: No `aria-describedby`, `aria-required`, or custom error messages are provided for form fields.
+- **No page metadata**: The `/meals/share` route does not export a `metadata` object or `generateMetadata` function, so the page title defaults to the root layout title.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Duplicate `border` property in `.actions button` | ℹ️ Low Priority | `app/meals/share/page.module.css:74-77` — `border: 0` on line 74 is overridden by `border: none` on line 77. Remove one of them. |
+| `IMAGE PICKER` rendered as visible text | ⚠️ Identified | `app/meals/share/page.js:41` — The literal text `IMAGE PICKER` appears in the rendered page. Should be replaced by a component or removed. |
+| No form `action` or submit handler | ℹ️ Informational | `app/meals/share/page.js:13` — The `<form>` element has no `action` or `onSubmit`. Submitting the form triggers a full-page GET reload. Will be addressed in a future lesson. |
+| Missing `metadata` export for the share page | ℹ️ Low Priority | `app/meals/share/page.js` — No `metadata` or `generateMetadata` export. The page relies on the root layout title. |
+| No `aria-describedby` on form inputs | ℹ️ Low Priority | `app/meals/share/page.js:17-39` — Form fields only use `required` for validation; no descriptive error hints are provided for screen readers. |
+
+### 🧱 116.4 Pending Fixes (TODO)
+
+- [ ] Remove the duplicate `border` declaration in `app/meals/share/page.module.css:74` — keep only `border: none` on line 77.
+- [ ] Replace the `IMAGE PICKER` placeholder text in `app/meals/share/page.js:41` with the actual image picker component (upcoming lesson) or wrap it in `{/* IMAGE PICKER */}` as a JSX comment.
+- [ ] Add a `metadata` export to `app/meals/share/page.js` for proper page title and description:
+  ```jsx
+  export const metadata = {
+    title: 'Share a Meal',
+    description: 'Share your favorite meal with the Foodies community!',
+  };
+  ```
+- [ ] Add `aria-describedby` attributes to form fields and provide corresponding `<span>` elements for error/help text to improve accessibility.
+- [ ] Wire up a form submission handler (server action or client-side `onSubmit`) — will be addressed in subsequent lessons.
+
+[↑ top - Getting Started with the "Share Meal" Form](#-116-lesson-116---getting-started-with-the-share-meal-form)
 
 
 
