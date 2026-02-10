@@ -34,6 +34,17 @@ This project is a modern web application built with **Next.js** to showcase a fo
   - [📚 Lesson 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
   - [📚 Lesson 105: React Server Components vs Client Components](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
   - [📚 Lesson 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
+  - [📚 Lesson 107: Outputting Meals Data & Images With Unknown Dimensions](#-107-lesson-107--outputting-meals-data--images-with-unknown-dimensions)
+  - [📚 Lesson 108: Setting Up A SQLite Database](#-108-lesson-108--setting-up-a-sqlite-database)
+  - [📚 Lesson 109: Fetching Data By Leveraging NextJS & Fullstack Capabilities](#-109-lesson-109--fetching-data-by-leveraging-nextjs--fullstack-capabilities)
+  - [📚 Lesson 110: Adding A Loading Page](#-110-lesson-110--adding-a-loading-page)
+  - [📚 Lesson 111: Using Suspense & Streamed Responses For Granular Loading State Management](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
+  - [📚 Lesson 112: Handling Errors](#-112-lesson-112--handling-errors)
+  - [📚 Lesson 113: Handling "Not Found" States](#-113-lesson-113--handling-not-found-states)
+  - [📚 Lesson 114: Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114--loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
+  - [📚 Lesson 115: Throwing Not Found Errors For Individual Meals](#-115-lesson-115--throwing-not-found-errors-for-individual-meals)
+  - [📚 Lesson 116: Getting Started with the "Share Meal" Form](#-116-lesson-116---getting-started-with-the-share-meal-form)
+  - [📚 Lesson 117: Getting Started with a Custom Image Picker Input Component](#-117-lesson-117--getting-started-with-a-custom-image-picker-input-component)
 
 ## 📁 Visual Project Tree
 ```
@@ -46,6 +57,9 @@ This project is a modern web application built with **Next.js** to showcase a fo
 │   │   ├── images/
 │   │   │   ├── image-slideshow.js # 📄 Animated slideshow component
 │   │   │   └── image-slideshow.module.css
+│   │   ├── meals/
+│   │   │   ├── image-picker.js    # 📄 Custom image picker client component
+│   │   │   └── image-picker.module.css # 📄 Styles for image picker
 │   │   └── main-header/
 │   │       ├── main-header.js     # 📄 Global navigation header
 │   │       ├── main-header.module.css
@@ -4540,6 +4554,387 @@ export default function ShareMealPage() {
 - [ ] Wire up a form submission handler (server action or client-side `onSubmit`) — will be addressed in subsequent lessons.
 
 [↑ top - Getting Started with the "Share Meal" Form](#-116-lesson-116---getting-started-with-the-share-meal-form)
+
+
+
+<br>
+
+## 🔧 117. Lesson 117 — *Getting Started with a Custom Image Picker Input Component*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [117. Lesson 117 — *Getting Started with a Custom Image Picker Input Component*](#-117-lesson-117--getting-started-with-a-custom-image-picker-input-component)
+- [117.1 Context](#-1171-context)
+- [117.2 Updating code according the context](#️-1172-updating-codetheory-according-the-context)
+  - [117.2.1 Create `image-picker.module.css` file](#1721-create-image-pickermodulecss-file)
+  - [117.2.2 Create `image-picker.js` file](#1722-create-image-pickerjs-file)
+  - [117.2.3 Import `image-picker.js` into `meals/share/page.js`](#1723-import-image-pickerjs-into-mealssharepagejs)
+  - [117.2.4 Style the `image-picker` input](#1724-style-the-image-picker-input)
+  - [117.2.5 Add `handlePickClick` function](#1725-add-handlepickclick-function)
+  - [117.2.6 Turn to `client` component and use `useRef` for `input`](#1726-turn-to-client-component-and-use-useref-for-input)
+- [117.3 Issues](#-1173-issues)
+- [117.4 Pending Fixes (TODO)](#-1174-pending-fixes-todo)
+
+### 🧠 117.1 Context:
+
+This lesson introduces a **custom Image Picker component** — a reusable UI element that wraps the native `<input type="file">` with a styled button and preview area. In web applications, the default file input is notoriously difficult to style and offers a poor user experience, so it is a standard practice to hide it and trigger it programmatically through a custom button.
+
+#### Key Concepts
+
+1. **Hidden native file input** — The native `<input type="file">` is hidden with `display: none` via CSS Modules and triggered programmatically using a React `ref`, giving full control over the visual appearance.
+2. **`useRef` for imperative DOM access** — React's `useRef` hook provides a stable reference to the underlying DOM node so we can call `.click()` on the hidden input from a custom button handler.
+3. **Client Components (`"use client"`)** — Because the component registers an event handler (`onClick`) and uses hooks (`useRef`), it must be marked as a Client Component. Next.js App Router components are Server Components by default.
+4. **CSS Modules scoping** — Styles are co-located in `image-picker.module.css` and imported as a `classes` object. This prevents class name collisions across the project.
+5. **Prop-driven configuration** — The component accepts `label` and `name` props so the same picker can be reused in different forms with different field identifiers.
+
+#### Advantages
+- **Full styling freedom** — By hiding the native input you can design any button, icon, or preview layout without browser-specific constraints.
+- **Reusability** — The `label` and `name` props make the component generic; it can be dropped into any form.
+- **Minimal footprint** — Only the picker component becomes a Client Component; the parent page (`ShareMealPage`) remains a Server Component, preserving server-side rendering benefits.
+- **Accessibility preserved** — The `<label htmlFor={name}>` is still linked to the hidden input by `id`, and the custom button is a native `<button>` element that receives keyboard focus.
+
+#### Disadvantages / Gotchas
+- **No image preview yet** — At the end of this lesson the user can open the file dialog but there is no visual feedback after selecting a file (preview is addressed in a later lesson).
+- **No props passed to `<ImagePicker />`** — In the current `ShareMealPage`, the component is rendered without `label` or `name`, which results in `undefined` values.
+- **`useRef()` without `null` initial value** — Calling `useRef()` without an argument initialises the ref as `undefined`; the idiomatic pattern is `useRef(null)` to clearly signal "no value yet."
+- **Client boundary overhead** — Converting a component to `"use client"` means it (and its subtree) will be hydrated on the client; overuse can negate SSR advantages.
+
+#### When to Consider Alternatives
+- If the form is entirely server-rendered and you do not need a styled button, you can keep the native `<input type="file">` visible and avoid the Client Component boundary altogether.
+- For complex upload flows (drag-and-drop, multi-file, progress bars) consider established libraries such as **react-dropzone** or **Uppy** instead of building from scratch.
+- If the image needs processing before upload (resize, crop), a dedicated image-upload widget (e.g., **Cloudinary Upload Widget**) can offload that work.
+
+### ⚙️ 117.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section walks through the creation of a custom `ImagePicker` component in six incremental steps.
+- The problem solved is replacing the ugly, hard-to-style native file input with a custom button that programmatically opens the file dialog.
+- Steps 117.2.1–117.2.2 scaffold the CSS and initial component; 117.2.3 integrates it into the `ShareMealPage` form; 117.2.4 hides the native input and adds the styled button; 117.2.5 wires up the click handler (which fails because event handlers require a Client Component); 117.2.6 resolves the error by adding `"use client"` and using `useRef` to trigger the hidden input.
+
+[image-pciker.module.css](https://github.com/mschwarzmueller/nextjs-complete-guide-course-resources/blob/main/attachments/02-nextjs-essentials/lecture-specific/components/meals/image-picker.module.css)
+
+#### 117.2.1 Create `image-picker.module.css` file:
+
+**Subsection Summary**
+- Creates the CSS Module stylesheet that will style the entire `ImagePicker` component.
+- Defines `.controls` (flex layout), `.picker .input` (hidden), `.picker .button` (custom styled button), and `.preview` (image preview placeholder).
+- The `.preview` class and its children (`p`, `img`) are scaffolded here but not consumed by the component until a later lesson.
+
+```css
+/* app/components/meals/image-picker.module.css */
+.controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.picker .input {
+  display: none;
+}
+
+.picker .button {
+  border: 0;
+  padding: 0.5rem 1.5rem;
+  background: #a4abb9;
+  border-radius: 2px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.picker .button:hover,
+.picker .button:focus {
+  background: #b3b9c6;
+}
+
+.preview {
+  width: 10rem;
+  height: 10rem;
+  border: 2px solid #a4abb9;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: #a4abb9;
+  position: relative;
+}
+
+.preview p {
+  margin: 0;
+  padding: 1rem;
+}
+
+.preview img {
+  object-fit: cover;
+}
+```
+
+#### 117.2.2 Create `image-picker.js` file:
+
+**Subsection Summary**
+- Creates the initial `ImagePicker` React component as a Server Component (no `"use client"` yet).
+- Accepts `label` and `name` props; renders a `<label>` linked to a native `<input type="file">` restricted to PNG/JPEG via the `accept` attribute.
+- At this stage the file input is fully visible and unstyled — that changes in later subsections.
+
+```jsx
+/* app/components/meals/image-picker.js */
+import classes from './image-picker.module.css';
+
+export default function ImagePicker({ label, name }){
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <input type="file" id={name} accept="image/png, image/jpeg" name={name} />
+      </div>
+    </div>
+  )
+}
+```
+
+#### 117.2.3 Import `image-picker.js` into `meals/share/page.js`
+
+**Subsection Summary**
+- Integrates the `ImagePicker` component into the `ShareMealPage` form, replacing the previous `IMAGE PICKER` placeholder text.
+- The import uses a relative path `../../components/meals/image-picker`.
+- The screenshot (`section03-lecture117-001.png`) shows the native file input rendered inside the form before any styling is applied.
+- Note: `<ImagePicker />` is rendered without props (`label` and `name` are both `undefined`).
+
+```jsx
+/* app/meals/share/page.js */
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';    // 👈🏽 ✅ (2)
+
+export default function ShareMealPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form}>
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker />   {/* 👈🏽 ✅ (1) */}
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+![image-picker added](../img/section03-lecture117-001.png)
+
+#### 117.2.4 Styling the `image-picker` input:
+
+**Subsection Summary**
+- Hides the native file input by applying `classes.input` (which maps to `display: none` in the CSS Module).
+- Adds a visible `<button>` with `classes.button` and `type="button"` to prevent accidental form submission.
+- The screenshot (`section03-lecture117-002.png`) shows the "Pick an Image" button rendered in the form.
+- At this point the button is purely visual — clicking it does nothing because no handler is attached yet.
+
+```jsx
+/* app/components/meals/image-picker.js */
+import classes from './image-picker.module.css';
+
+export default function ImagePicker({ label, name }){
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <input 
+          className={classes.input}   {/* 👈🏽 ✅ (1) */}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+        />
+        <button className={classes.button} type="button">Pick an Image</button>   {/* 👈🏽 ✅ (2) */}
+      </div>
+    </div>
+  )
+}
+```
+
+![added image-picker button ](../img/section03-lecture117-002.png)
+
+- This button does nothing at all.
+- `<button></button>` without `type="button"` is by default `type="submit"`, which means `no prevent accidental form submission`.
+
+
+#### 117.2.5 Add `handlePickClick` function
+
+**Subsection Summary**
+- Defines an empty `handlePickClick` arrow function and wires it to the button's `onClick` prop.
+- This triggers a **Next.js runtime error** because event handlers (like `onClick`) are not allowed in Server Components — only Client Components can use interactive browser APIs.
+- The screenshot (`section03-lecture117-003.png`) shows the error message: the component must be converted to a Client Component to use event handlers.
+
+```jsx
+/* app/components/meals/image-picker.js */
+import classes from './image-picker.module.css';
+
+export default function ImagePicker({ label, name }){
+
+  const handlePickClick = () => {}    // 👈🏽 ✅
+
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <input 
+          className={classes.input}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+        />
+        <button
+          className={classes.button}
+          type="button"
+          onClick={handlePickClick} {/* 👈🏽 ✅ */}
+        >
+          Pick an Image
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+![component MUST be client component](../img/section03-lecture117-003.png)
+
+#### 117.2.6 Turn to `client` component and use `useRef` for `input`:
+
+**Subsection Summary**
+- Adds `"use client"` directive at the top of the file, converting `ImagePicker` into a Client Component so it can use hooks and event handlers.
+- Imports `useRef` from React and creates an `imageInput` ref that is attached to the hidden `<input>` element.
+- The `handlePickClick` handler now calls `imageInput.current.click()`, which programmatically opens the native file dialog when the custom "Pick an Image" button is clicked.
+- This is the final state of the component for this lesson — a fully interactive custom image picker button that opens the file chooser.
+
+```jsx
+/* app/components/meals/image-picker.js */
+"use client"    // 👈🏽 ✅ (1)
+import { useRef } from 'react';    // 👈🏽 ✅ (2)
+import classes from './image-picker.module.css';
+
+export default function ImagePicker({ label, name }){
+  const imageInput = useRef();    // 👈🏽 ✅ (2)
+  const handlePickClick = () => {
+    imageInput.current.click();    // 👈🏽 ✅ (4)
+  }
+
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <input 
+          className={classes.input}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+          ref={imageInput}    {/* 👈🏽 ✅ (3) */}
+        />
+        <button
+          className={classes.button}
+          type="button"
+          onClick={handlePickClick}
+        >
+          Pick an Image
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+### 🐞 117.3 Issues:
+
+- **Missing props on `<ImagePicker />`**: The component is rendered in `ShareMealPage` without passing `label` or `name` props, so both resolve to `undefined` — the `<label>` renders empty text and the `<input>` has no `id` or `name` attribute.
+- **`useRef()` initialised without `null`**: The idiomatic React pattern is `useRef(null)`. Omitting the argument sets the initial value to `undefined`, which can cause type-checking issues in TypeScript or unexpected behaviour if `.current` is accessed before the ref is attached.
+- **No image preview feedback**: After a file is selected the user sees no visual feedback — the `.preview` styles exist in CSS but the component does not render a preview element yet.
+- **Button lacks accessibility attributes**: The "Pick an Image" button has no `aria-label` and no keyboard shortcut hint. Screen-reader users get no indication of what the button does beyond its text.
+- **`accept` attribute is narrow**: Only `image/png` and `image/jpeg` are accepted; other common web formats like `image/webp` and `image/gif` are excluded.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Missing `label` and `name` props on `<ImagePicker />` | ⚠️ Identified | `app/meals/share/page.js:42` — `<ImagePicker />` is rendered without props. Should be `<ImagePicker label="Your image" name="image" />`. |
+| `useRef()` called without initial `null` | ℹ️ Low Priority | `app/components/meals/image-picker.js:6` — `useRef()` should be `useRef(null)` for explicit initialisation. |
+| No image preview after file selection | ℹ️ Informational | `app/components/meals/image-picker.js` — CSS classes `.preview`, `.preview p`, and `.preview img` exist in `image-picker.module.css:26-45` but are not used in JSX. Will be addressed in a future lesson. |
+| "Pick an Image" button missing `aria-label` | ℹ️ Low Priority | `app/components/meals/image-picker.js:25-31` — The `<button>` has no `aria-label` or `aria-describedby`. Recommended for screen-reader context. |
+| `accept` attribute excludes WebP/GIF | ℹ️ Low Priority | `app/components/meals/image-picker.js:21` — `accept="image/png, image/jpeg"` — consider adding `image/webp` for broader format support. |
+
+### 🧱 117.4 Pending Fixes (TODO)
+
+- [ ] Pass `label` and `name` props to `<ImagePicker />` in `app/meals/share/page.js:42`:
+  ```jsx
+  <ImagePicker label="Your image" name="image" />
+  ```
+- [ ] Change `useRef()` to `useRef(null)` in `app/components/meals/image-picker.js:6` for explicit initialisation:
+  ```jsx
+  const imageInput = useRef(null);
+  ```
+- [ ] Add `aria-label` to the "Pick an Image" button in `app/components/meals/image-picker.js:25`:
+  ```jsx
+  <button
+    className={classes.button}
+    type="button"
+    onClick={handlePickClick}
+    aria-label="Pick an image to upload"
+  >
+    Pick an Image
+  </button>
+  ```
+- [ ] Consider expanding the `accept` attribute in `app/components/meals/image-picker.js:21` to include WebP:
+  ```jsx
+  accept="image/png, image/jpeg, image/webp"
+  ```
+- [ ] Implement image preview functionality using the `.preview` CSS classes already defined in `app/components/meals/image-picker.module.css:26-45` (upcoming lesson).
+
+[↑ top - Getting Started with a Custom Image Picker Input Component](#-117-lesson-117--getting-started-with-a-custom-image-picker-input-component)
+
+
+
 
 
 
