@@ -4935,6 +4935,370 @@ export default function ImagePicker({ label, name }){
 
 
 
+<br>
+
+## 🔧 118. Lesson 118 — *Adding an Image Preview to the Picker*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [118. Lesson 118 — *Adding an Image Preview to the Picker*](#-118-lesson-118--adding-an-image-preview-to-the-picker)
+- [118.1 Context](#-1181-context)
+- [118.2 Updating code according the context](#️-1182-updating-codetheory-according-the-context)
+  - [118.2.1 Adding `useState` hook and the `handleImageChange` function](#11821-adding-usestate-hook-and-the-handleimagechange-function)
+  - [118.2.2 Creating a helper in order to read the file from computer](#11822-creating-a-helper-in-order-to-read-the-file-from-computer)
+  - [118.2.3 Image preview with no image yet](#11823-image-preview-with-no-image-yet)
+  - [118.2.4 Image preview with an uploaded image](#11824-image-preview-with-an-uploaded-image)
+- [118.3 Issues](#-1183-issues)
+- [118.4 Pending Fixes (TODO)](#-1184-pending-fixes-todo)
+
+### 🧠 118.1 Context:
+
+This lesson builds on the custom Image Picker component created in Lesson 117 by adding **image preview functionality**. The goal is to let users see the image they selected before submitting the form. This is accomplished by reading the selected file with the browser's `FileReader` API, converting it to a **base64 data URL**, storing it in React state via `useState`, and conditionally rendering Next.js's `<Image>` component.
+
+#### Key Concepts
+
+1. **`useState` for image data** — A state variable (`pickedImage`) holds the base64-encoded string of the chosen image. This drives the conditional rendering of the preview area, showing either a placeholder message or the actual image.
+2. **`FileReader` API** — The browser-native `FileReader` object reads the contents of a `File` selected through the `<input type="file">`. Calling `readAsDataURL(file)` converts the binary file into a `data:image/…;base64,…` string that can be used directly as an image `src`.
+3. **`onload` callback pattern** — `FileReader` is asynchronous. The `onload` handler fires once the file has been fully read, at which point `filereader.result` contains the data URL. This is the safe moment to update React state.
+4. **Conditional rendering** — Two complementary conditions (`!pickedImage` / `pickedImage`) ensure that the placeholder text and the preview image are mutually exclusive, preventing layout jumps.
+5. **Next.js `<Image>` with `fill`** — Using `fill` instead of explicit `width`/`height` makes the image fill its closest positioned ancestor (`position: relative` on `.preview`). Combined with `object-fit: cover` in CSS, this produces a clean, cropped preview at any aspect ratio.
+
+#### Advantages
+
+- **Instant feedback** — Users see what they selected without waiting for a server round-trip.
+- **No external dependencies** — `FileReader` is built into every modern browser; no library is needed.
+- **Lightweight state** — Only the data URL string is stored in state; the original `File` object remains available through the `<input>` ref for later form submission.
+- **Reusable pattern** — The same `FileReader` + `useState` pattern works for any file-preview scenario (PDFs, audio waveforms, etc.) with minor adjustments.
+
+#### Disadvantages / Gotchas
+
+- **Base64 size overhead** — A base64 string is ~33 % larger than the binary file. For very large images this increases memory usage and may slow down the UI.
+- **No upload progress** — `readAsDataURL` provides no built-in progress indicator; for large files, consider `readAsArrayBuffer` with progress events.
+- **Browser memory** — Storing large data URLs in React state keeps them in memory until the component unmounts or the state is cleared.
+- **Single-file only** — The current implementation reads only `files[0]`. The `<input>` does not set the `multiple` attribute, so only one file at a time is supported.
+- **No validation** — There is no file-size or dimension validation before reading. A user could pick a 50 MB photo and the preview would still try to render it.
+
+#### When to Consider Alternatives
+
+- **Large files / many files** — Use `URL.createObjectURL(file)` for previews instead of base64; it is more memory-efficient because the browser creates a temporary blob URL without copying the data.
+- **Server-side preview generation** — If the image must be processed (resized, watermarked) before display, upload it first and use the server's response URL.
+- **Progressive upload UX** — For drag-and-drop zones with progress bars, libraries like `react-dropzone` or `uppy` offer richer APIs.
+
+### ⚙️ 118.2 Updating code/theory according the context:
+
+#### **Summary**
+
+- This section walks through the incremental process of adding an image preview to the `ImagePicker` component built in Lesson 117.
+- The problem solved is that users need immediate visual feedback after selecting an image file, rather than just a file name or nothing at all.
+- **118.2.1** introduces `useState` and the `handleImageChange` event handler that captures the selected file.
+- **118.2.2** adds the `FileReader` helper inside the handler to convert the file to a base64 data URL and store it in state.
+- **118.2.3** adds the preview container with a placeholder message when no image has been picked.
+- **118.2.4** completes the feature by conditionally rendering the Next.js `<Image>` component when an image is available.
+
+Goal:
+
+* ➡ Take the image the user chose
+* ➡ convert it to a special text string (base64) 
+* ➡ save it in the component's state
+
+So the app can show a preview of the image immediately (without sending it to the server yet).
+
+#### 118.2.1 Adding `useState` hook and the `handleImageChange` function:
+
+**Subsection Summary**
+- Introduces `useState` to track the picked image data and adds the `handleImageChange` event handler wired to the `<input>`'s `onChange`.
+- `useState` is imported alongside `useRef`; the component already requires `"use client"` from Lesson 117.
+- The handler performs an early return if no file is selected (e.g., the user clicked "Cancel" in the file dialog), following defensive programming best practices.
+- At this stage the handler does not yet read the file — that is deferred to 118.2.2.
+
+- the user just picked a file! Start working.
+- Get the first (and usually only) file the user selected.
+- If no file was selected (user clicked cancel), just stop. Do nothing.
+
+```jsx
+/* app/components/meals/image-picker.js */
+"use client"
+import { useRef, useState } from 'react';                   // 👈🏽 ✅ (1)
+import classes from './image-picker.module.css';
+import Image from 'next/image';
+export default function ImagePicker({ label, name }){
+  const [pickedImage, setPickedImage] = useState();         // 👈🏽 ✅ (1) need to be "use client"
+  const imageInput = useRef();
+  const handlePickClick = () => {
+    imageInput.current.click();
+  }
+  const handleImageChange = (e) => {                        // 👈🏽 ✅ (2)
+    const file = e.target.files[0];
+    // no file was selected.
+    if(!file) return;
+  }
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <input                                                // "multiple" files to upload as property
+          className={classes.input}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+          ref={imageInput}
+          onChange={handleImageChange}                        {/* 👈🏽 ✅ (2) */}
+        />
+        <button
+          className={classes.button}
+          type="button"
+          onClick={handlePickClick}
+        >
+          Pick an Image
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+#### 118.2.2 Creating a helper in order to read the file from computer.
+
+**Subsection Summary**
+- Completes the `handleImageChange` function by adding a `FileReader` instance that converts the selected file into a base64 data URL.
+- The `filereader.onload` callback fires once reading is complete and calls `setPickedImage(filereader.result)` to store the data URL in state.
+- `filereader.readAsDataURL(file)` initiates the asynchronous read, demonstrating the standard `FileReader` lifecycle: create → set callback → trigger read.
+- This is the core logic that bridges "file on disk" to "renderable string in React state".
+
+<br>
+
+* 👉🏽 Create a little helper that knows how to read files from the computer.
+* 👉🏽 When you finish reading the file, do this:
+  * 👉🏽 Save the image (now as a very long text string) into the state variable `pickedImage`.
+  * 👉🏽 This is usually used later to show `<img src={pickedImage} />`.
+* 👉🏽 Helper, please read this file and turn it into a data:url string (base64)
+
+```jsx
+/* app/components/meals/image-picker.js */
+"use client"
+import { useRef, useState } from 'react';
+import classes from './image-picker.module.css';
+import Image from 'next/image';
+
+export default function ImagePicker({ label, name }){
+  const [pickedImage, setPickedImage] = useState();
+  const imageInput = useRef();
+  const handlePickClick = () => {
+    imageInput.current.click();
+  }
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const filereader = new FileReader();                    // 👈🏽 ✅ (1)
+    filereader.onload = () => {
+      setPickedImage(filereader.result);                    // 👈🏽 ✅ (2)
+    };
+    filereader.readAsDataURL(file);                         // 👈🏽 ✅ (3)
+  }
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <input 
+          className={classes.input}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+          ref={imageInput}
+          onChange={handleImageChange}
+        />
+        <button
+          className={classes.button}
+          type="button"
+          onClick={handlePickClick}
+        >
+          Pick an Image
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+#### 118.2.3 Image preview with no image yet:
+
+**Subsection Summary**
+- Adds the `.preview` container `<div>` to the JSX, positioned before the `<input>` and button.
+- Uses conditional rendering (`!pickedImage && <p>…</p>`) to display a "No image picked yet." placeholder when no image has been selected.
+- The screenshot (`section03-lecture118-001.png`) shows the empty preview area with the placeholder text visible inside the bordered box.
+
+```jsx
+/* app/components/meals/image-picker.js */
+"use client"
+import { useRef, useState } from 'react';
+import classes from './image-picker.module.css';
+import Image from 'next/image';
+export default function ImagePicker({ label, name }){
+  const [pickedImage, setPickedImage] = useState();
+  const imageInput = useRef();
+  const handlePickClick = () => {
+    imageInput.current.click();
+  }
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const filereader = new FileReader();
+    filereader.onload = () => {
+      setPickedImage(filereader.result);
+    };
+    filereader.readAsDataURL(file);
+  }
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <div className={classes.preview}>                        {/* 👈🏽 ✅ (1) using the preview image */}
+          {!pickedImage && <p>No image picked yet.</p>}          {/* 👈🏽 ✅ (2) */}
+        </div>
+        <input 
+          className={classes.input}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+          ref={imageInput}
+          onChange={handleImageChange}
+        />
+        <button
+          className={classes.button}
+          type="button"
+          onClick={handlePickClick}
+        >
+          Pick an Image
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+![no image in the preview](../img/section03-lecture118-001.png)
+
+#### 118.2.4 Image preview with an uploaded image:
+
+**Subsection Summary**
+- Adds the second conditional branch (`pickedImage && <Image … />`) that renders the Next.js `<Image>` component when a file has been successfully read.
+- The `fill` prop is used so the image fills the `.preview` container (which has `position: relative`), and `object-fit: cover` in CSS ensures proper cropping.
+- This is the final version of the component for this lesson — it now supports: triggering the file dialog, reading the file, and displaying the preview.
+- The screenshot (`section03-lecture118-002.png`) shows a picked image correctly displayed inside the preview box.
+
+```jsx
+/* app/components/meals/image-picker.js */
+"use client"
+import { useRef, useState } from 'react';
+import classes from './image-picker.module.css';
+import Image from 'next/image';
+
+export default function ImagePicker({ label, name }){
+  const [pickedImage, setPickedImage] = useState();   // need to be "use client"
+  const imageInput = useRef();
+  const handlePickClick = () => {
+    imageInput.current.click();
+  }
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const filereader = new FileReader();
+    filereader.onload = () => {
+      setPickedImage(filereader.result);
+    };
+    filereader.readAsDataURL(file);
+  }
+  return (
+    <div className={classes.picker}>
+      <label htmlFor={name}>
+        {label}
+      </label>
+      <div className={classes.controls}>
+        <div className={classes.preview}>
+          {!pickedImage && <p>No image picked yet.</p>}
+          {pickedImage && (
+            <Image                                      // 👈🏽 ✅
+              src={pickedImage}
+              alt="The image selected by the user."
+              fill
+            />)
+          }
+        </div>
+        <input 
+          className={classes.input}
+          type="file"
+          id={name}
+          accept="image/png, image/jpeg"
+          name={name} 
+          ref={imageInput}
+          onChange={handleImageChange}
+        />
+        <button
+          className={classes.button}
+          type="button"
+          onClick={handlePickClick}
+        >
+          Pick an Image
+        </button>
+      </div>
+    </div>
+  )
+}
+```
+
+![image preview working](../img/section03-lecture118-002.png)
+
+#### 118.2.5 Summary:
+
+1. `new FileReader()` → make the helper
+2. `filereader.onload = () => { ... }` → tell the helper: "When you finish → give me the result and I'll save it"
+3. `filereader.readAsDataURL(file)` → tell the helper: "Okay, start now! Read this file and convert it to data:url format"
+4. (some time passes — usually very fast for small images)
+5. Reading finishes → browser automatically calls your `onload` function
+6. Inside `onload`: `filereader.result` now contains the long string
+7. `setPickedImage(filereader.result)` → save it so React can show `<img src={pickedImage} />`
+
+| You write                  | Real meaning in plain words                                      | When does it happen / become available?          |
+|----------------------------|------------------------------------------------------------------|--------------------------------------------------|
+| `.onload`                  | "Call me when reading is successfully finished"                 | After reading completes (success)                |
+| `.result`                  | "The data you just read (the final content)"                     | Only inside onload / onloadend (after done)      |
+| `.readAsDataURL(file)`     | "Start reading + convert file to base64 data:url string"         | You call it → starts the work                    |
+
+### 🐞 118.3 Issues:
+
+- **No file-size validation** — The component reads any file the user selects regardless of size. A very large image (e.g., 50 MB) will be fully converted to base64 and stored in state, potentially freezing the UI.
+- **No error handling on `FileReader`** — If `readAsDataURL` fails (e.g., the file is corrupted), there is no `onerror` handler, so the failure is silently swallowed and the preview remains empty with no feedback.
+- **`useState` initialised without a value** — `useState()` without an argument defaults to `undefined`. While this works for the conditional checks, explicitly initialising with `null` (i.e., `useState(null)`) would make the intent clearer and is considered a best practice.
+- **Missing `aria-label` on the preview area** — The `.preview` div has no accessible label or `role`, so screen readers cannot convey its purpose to assistive technology users.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| No file-size validation before reading | ⚠️ Identified | `app/components/meals/image-picker.js:13-24` — `handleImageChange` reads any file without checking `file.size`. |
+| No `onerror` handler on `FileReader` | ⚠️ Identified | `app/components/meals/image-picker.js:18-22` — Only `onload` is set; `onerror` is missing. |
+| `useState` initialised as `undefined` | ℹ️ Low Priority | `app/components/meals/image-picker.js:7` — `useState()` should be `useState(null)` for explicit intent. |
+| Preview `<div>` lacks accessibility attributes | ⚠️ Identified | `app/components/meals/image-picker.js:32` — No `role` or `aria-label` on `.preview` container. |
+| No loading indicator during `FileReader` read | ℹ️ Informational | `app/components/meals/image-picker.js:18-22` — Large files may take noticeable time to read with no visual feedback. |
+
+### 🧱 118.4 Pending Fixes (TODO)
+
+- [ ] Add file-size validation in `handleImageChange` before calling `readAsDataURL` — reject files above a configurable threshold (e.g., 5 MB) and display a user-friendly error message (`app/components/meals/image-picker.js:14`).
+- [ ] Add an `onerror` handler to the `FileReader` instance to catch read failures and surface feedback to the user (`app/components/meals/image-picker.js:18`).
+- [ ] Change `useState()` to `useState(null)` for explicit initialisation (`app/components/meals/image-picker.js:7`).
+- [ ] Add `role="img"` and `aria-label` to the `.preview` container, or wrap the placeholder `<p>` with an appropriate ARIA live region so screen readers announce changes (`app/components/meals/image-picker.js:32`).
+- [ ] Consider replacing `readAsDataURL` with `URL.createObjectURL(file)` for more memory-efficient previews, especially if large images are expected.
+- [ ] Add a loading spinner or skeleton in the preview area while `FileReader` is processing, using an additional state flag (e.g., `isLoading`).
+
+[↑ top - 118. Lesson 118 — *Adding an Image Preview to the Picker*](#-118-lesson-118--adding-an-image-preview-to-the-picker)
 
 
 
@@ -4984,8 +5348,6 @@ export default function ImagePicker({ label, name }){
 ```
 
 ### 🐞 XXX.3 Issues:
-- **first issue**: something..
-
 | Issue | Status | Log/Error |
 |---|---|---|
 
