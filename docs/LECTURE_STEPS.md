@@ -5508,6 +5508,296 @@ export default function ImagePicker({ label, name, required = false }){         
 
 [↑ top — 119. Lesson 119 — *Improving the Image Picker Component*](#-119-lesson-119--improving-the-image-picker-component)
 
+<br>
+
+## 🔧 120. Lesson 120 — *Introducing & Using Server Actions for Handling Form Submissions*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [120. Lesson 120 — *Introducing & Using Server Actions for Handling Form Submissions*](#-120-lesson-120--introducing--using-server-actions-for-handling-form-submissions)
+- [120.1 Context](#-1201-context)
+- [120.2 Updating code according the context](#️-1202-updating-codetheory-according-the-context)
+  - [120.2.1 Create the submission method](#12021-create-the-submission-method)
+  - [120.2.2 Creating/Adding a `server action` function](#12022-creatingadding-a-server-action-function)
+  - [120.2.3 Extracting form data inside the server action](#12023-extracting-form-data-inside-the-server-action)
+- [120.3 Issues](#-1203-issues)
+- [120.4 Pending Fixes (TODO)](#-1204-pending-fixes-todo)
+
+### 🧠 120.1 Context:
+
+This lesson introduces **Server Actions** in Next.js — a React/Next.js feature that allows you to define functions that are **guaranteed to execute only on the server**, and can be directly wired to HTML `<form>` elements via the `action` prop. Instead of the traditional client-side `onSubmit` handler that would require an API route or fetch call, Server Actions let you co-locate form-handling logic within your Server Component, simplifying the request–response cycle for form submissions.
+
+#### Key Concepts
+
+1. **Server Actions** — Functions marked with the `'use server'` directive inside their body. They run exclusively on the server, never shipping their code to the client bundle. This is Next.js's built-in mechanism for handling mutations (form submissions, database writes, etc.).
+2. **The `action` prop on `<form>`** — In Next.js (with React Server Components), the `<form>` element's `action` prop can accept a Server Action function reference instead of a URL string. When the form is submitted, Next.js automatically serialises the form data and sends it to the server, invoking the action function.
+3. **`formData` parameter** — Server Actions automatically receive a `FormData` object as their first argument. You extract individual field values via `formData.get('fieldName')`, where `fieldName` matches the `name` attribute of the corresponding `<input>`, `<textarea>`, or `<select>` element.
+4. **`async` requirement** — A Server Action must be an `async` function. The `'use server'` directive is only valid inside `async` functions.
+5. **Fullstack co-location** — Because Next.js Server Components already execute on the server, defining a Server Action inside a Server Component means both the rendering logic and the form-handling logic live in the same file without needing a separate API route.
+
+#### Advantages
+
+- **No manual API routes** — Server Actions eliminate the need to create `/api/...` route handlers for simple form submissions; the server function is invoked directly.
+- **Automatic `FormData` serialization** — The browser natively serializes the form fields into a `FormData` object and Next.js forwards it to the action, so no manual `JSON.stringify` or `fetch` boilerplate is needed.
+- **Progressive enhancement** — Forms using `action` work even if JavaScript is disabled in the browser (the browser falls back to a native form POST).
+- **Reduced client bundle** — Server Action code is never included in the JavaScript sent to the browser, keeping the client bundle smaller.
+- **Type-safe extraction** — Each `formData.get()` call maps directly to a `name` attribute on the form, making the data flow explicit and traceable.
+
+#### Disadvantages / Gotchas
+
+- **Server Component only (inline)** — Inline Server Actions (defined inside the component body) can only be written in Server Components. If the page is a Client Component (`'use client'`), the action must be imported from a separate file that uses `'use server'` at the top.
+- **No real-time client-side validation** — Server Actions execute after submission. For instant field-level validation (e.g., showing errors as the user types), you still need client-side logic.
+- **`formData.get()` returns `FormDataEntryValue | null`** — Values are always strings (or `File` for file inputs). Numeric or boolean fields need manual parsing/coercion.
+- **Debugging runs on the server** — `console.log` inside a Server Action prints to the server terminal, not the browser console, which can be confusing during development.
+- **Security considerations** — Even though the code runs on the server, input must still be validated and sanitized; the `FormData` values originate from the client and can be tampered with.
+
+#### When to Consider Alternatives
+
+- If you need **complex client-side validation or optimistic UI updates**, consider combining Server Actions with `useFormState` / `useFormStatus` hooks, or use a client-side form library (React Hook Form, Formik) alongside a traditional API route.
+- If the form is in a **Client Component** that cannot be restructured, move the Server Action to a separate `actions.js` file with `'use server'` at the module level.
+- For **non-form mutations** (e.g., triggered by a button click outside a form), you can still call a Server Action but you'll invoke it manually rather than via the `action` prop.
+
+### ⚙️ 120.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section walks through three incremental steps to add form submission handling to `app/meals/share/page.js` using Next.js Server Actions.
+- **120.2.1** shows the starting point — the traditional `onSubmit` approach and why it's not the ideal pattern in a Next.js Server Component context.
+- **120.2.2** replaces `onSubmit` with the `action` prop and introduces the `shareMeal` Server Action using `'use server'`.
+- **120.2.3** completes the implementation by accepting the `formData` parameter, extracting all form field values into a `meal` object, and logging it to the server console.
+- Together, these steps demonstrate the full lifecycle: from identifying the submission entry point, to creating the server-side handler, to reading the submitted data.
+
+#### 120.2.1 Create the submission method:
+
+**Subsection Summary**
+- Shows the starting form markup in `app/meals/share/page.js` with a traditional `onSubmit={somePreDefinedFunction}` handler placeholder.
+- Highlights that in a Next.js app (which is already a fullstack framework), the component renders on the server, so the traditional client-side `onSubmit` pattern is not the recommended approach.
+- Sets the stage for replacing `onSubmit` with the Server Action pattern in the next subsection.
+
+```jsx
+/* app/meals/share/page.js */
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';
+export default function ShareMealPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} onSubmit={somePreDefinedFunction}>     {/* 👈🏽 ✅ */}
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker />
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+* We already are on the backend
+* kind of fullstack app which has both backend and frontend.
+
+#### 120.2.2 Creating/Adding a `server action` function
+
+**Subsection Summary**
+- Introduces the `shareMeal` function inside the `ShareMealPage` component with the `'use server'` directive.
+- Changes the `<form>` from `onSubmit` to `action={shareMeal}`, wiring the Server Action directly to the form's native action mechanism.
+- Explains the core rules: the function must be `async`, `'use server'` must be placed at the top of the function body, and the `action` prop replaces the traditional URL-based `action="/some-path"` with a direct function reference.
+- Demonstrates the key pattern: **Server Actions as first-class form handlers** in Next.js Server Components.
+
+```jsx
+/* app/meals/share/page.js */
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';
+export default function ShareMealPage() {
+  async function shareMeal(){                             // 👈🏽 ✅
+    'use server';                                         // 👈🏽 ✅
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>  {/* 👈🏽 ✅ */}
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker />
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+* `'use server'` creates a so called `server action`.
+* function which garantees to execute on the server only.
+* to turn to a `server action` must add the `async` keyword in front of it.
+* related to `action` property, it is set to the path to which the request should be sent: `<form action="/some-path">`
+* The `action` prop is sending a `server action` function.
+
+#### 120.2.3 Extracting form data inside the server action
+
+**Subsection Summary**
+- Adds the `formData` parameter to the `shareMeal` Server Action so it receives the browser-serialized `FormData` object.
+- Builds a `meal` object by calling `formData.get()` for each field (`title`, `summary`, `instructions`, `image`, `name`, `email`), mapping each to the corresponding `name` attribute on the form inputs.
+- Passes `label="Your image"` and `name="image"` props to `<ImagePicker />`, which was previously rendered without them — this ensures `formData.get('image')` returns the selected file.
+- Uses `console.log(meal)` to verify the data on the **server terminal** (not the browser console), as shown in the screenshot.
+- The screenshot (`section03-lecture120-001.png`) demonstrates the `console.log` output appearing in the server-side terminal, confirming the Server Action executed on the server.
+
+```jsx
+/* app/meals/share/page.js */
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';
+export default function ShareMealPage() {
+  async function shareMeal(formData){                                   // 👈🏽 ✅ (1)
+    'use server';
+    const meal = {                                                      // 👈🏽 ✅ (2)
+      title: formData.get('title'),
+      summary: formData.get('summary'),
+      instructions: formData.get('instructions'),
+      image: formData.get('image'),
+      creator: formData.get('name'),
+      creator_email: formData.get('email'),
+    }
+    console.log(meal);
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              {/* creator: formData.get('name') => name="name" */}
+              <input type="text" id="name" name="name" required />  
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            {/* title: formData.get('title') => name="title" */}
+            <input type="text" id="title" name="title" required />   
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />                 {/* 👈🏽 ✅ (3) */}
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+![console.log(meal) displays in server side](../img/section03-lecture120-001.png)
+
+### 🐞 120.3 Issues:
+| Issue | Status | Log/Error |
+|---|---|---|
+| No input validation in Server Action | ⚠️ Identified | `app/meals/share/page.js:6-17` — The `shareMeal` function extracts `formData` values without any validation (e.g., empty strings, invalid email format, missing image). Malicious or malformed data could be processed. |
+| Debug `console.log` left in Server Action | ℹ️ Low Priority | `app/meals/share/page.js:17` — `console.log(meal)` is useful for development but should be removed or replaced with proper logging before production. |
+| No user feedback after form submission | ⚠️ Identified | `app/meals/share/page.js:29` — After the Server Action completes, the page does not display a success/error message or redirect. The user has no indication that their submission was processed. |
+| No data persistence | ℹ️ Informational | `app/meals/share/page.js:6-17` — The `shareMeal` action builds a `meal` object but does not save it anywhere (database, file system, etc.). This is expected at this lesson stage but must be addressed in future lessons. |
+| Missing accessibility on submit button | ℹ️ Low Priority | `app/meals/share/page.js:59` — The "Share Meal" submit button lacks an `aria-label` attribute for screen readers. |
+
+### 🧱 120.4 Pending Fixes (TODO)
+
+- [ ] Add server-side input validation inside `shareMeal` (check for empty/missing fields, validate email format, verify image is a `File` instance) — `app/meals/share/page.js:9-16`
+- [ ] Remove or replace `console.log(meal)` with a proper logging utility before deploying to production — `app/meals/share/page.js:17`
+- [ ] Implement data persistence (e.g., save `meal` to a database or file system) inside the Server Action — `app/meals/share/page.js:6-17`
+- [ ] Add user feedback after submission: either redirect to a success page via `redirect()` from `next/navigation`, or use `useFormState` to display success/error messages — `app/meals/share/page.js:29`
+- [ ] Add `aria-label="Share your meal"` to the submit button for improved accessibility — `app/meals/share/page.js:59`
+- [ ] Consider extracting the `shareMeal` Server Action into a dedicated `app/meals/share/actions.js` file with `'use server'` at the module level for better separation of concerns and reusability
+
+[↑ top — 120. Lesson 120 — *Introducing & Using Server Actions for Handling Form Submissions*](#-120-lesson-120--introducing--using-server-actions-for-handling-form-submissions)
+
 
 
 
