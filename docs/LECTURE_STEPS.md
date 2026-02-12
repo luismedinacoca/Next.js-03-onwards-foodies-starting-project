@@ -5799,6 +5799,557 @@ export default function ShareMealPage() {
 [↑ top — 120. Lesson 120 — *Introducing & Using Server Actions for Handling Form Submissions*](#-120-lesson-120--introducing--using-server-actions-for-handling-form-submissions)
 
 
+<br>
+
+## 🔧 121. Lesson 121 — *Storing Server Actions in Separate Files*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [121. Lesson 121 — *Storing Server Actions in Separate Files*](#-121-lesson-121--storing-server-actions-in-separate-files)
+- [121.1 Context](#-1211-context)
+- [121.2 Updating code according the context](#️-1212-updating-codetheory-according-the-context)
+  - [121.2.1 `server actions` does not work in `use client` component](#12121-server-actions-does-not-work-in-use-client-component)
+  - [121.2.2 For `client` component, remove the `server action` away](#12122-for-client-component-remove-the-server-action-away)
+  - [121.2.3 `server action` move aways due to `client` component](#12123-server-action-move-aways-due-to-client-component)
+  - [121.2.4 Import the `server action` into `use client` component](#12124-import-the-server-action-into-use-client-component)
+- [121.3 Issues](#-1213-issues)
+- [121.4 Pending Fixes (TODO)](#-1214-pending-fixes-todo)
+
+### 🧠 121.1 Context:
+
+This lesson addresses a **fundamental constraint** of Next.js Server Actions: **inline Server Actions (functions with `'use server'` in their body) cannot be defined inside Client Components** (`'use client'`). The solution is to extract the Server Action into a **dedicated file** that declares `'use server'` at the **module level**, and then import that function into the Client Component.
+
+This pattern is essential whenever a component needs client-side interactivity (state, effects, event handlers, browser APIs) **and** also needs to trigger a server-side mutation via a Server Action.
+
+#### Key Concepts
+
+1. **`'use server'` at module level** — When placed at the very top of a file (before any imports or code), the `'use server'` directive marks **every exported function** in that file as a Server Action. This is the required approach when the consuming component is a Client Component.
+2. **Separation of concerns** — Moving Server Actions to a dedicated file (e.g., `lib/actions.js`) cleanly separates server-side mutation logic from client-side rendering and interaction logic.
+3. **Named exports** — Functions in a `'use server'` module must be individually exported (`export async function shareMeal(...)`) so they can be imported by name in Client Components.
+4. **Client Component constraint** — React/Next.js disallows the `'use server'` directive inside a function body when the containing module is marked `'use client'`. The two directives are mutually exclusive at the inline level.
+5. **Import-based wiring** — After extraction, the Client Component imports the Server Action by name and passes it to the `<form action={...}>` prop exactly as before. The behavior is identical — only the file organization changes.
+
+#### Advantages
+
+- **Enables Server Actions in Client Components** — The primary advantage: without this pattern, Client Components cannot use Server Actions at all.
+- **Reusability** — A Server Action defined in `lib/actions.js` can be imported and used by multiple components across the application, avoiding code duplication.
+- **Cleaner component files** — Removing server-side logic from the component file makes it easier to read, test, and maintain.
+- **Scalability** — As the application grows, a centralized `actions.js` (or multiple action files) provides a single place to manage all server-side mutations.
+- **Clear boundaries** — The file-level `'use server'` directive makes it immediately obvious that the entire file contains server-only code; there is no ambiguity.
+
+#### Disadvantages / Gotchas
+
+- **Extra file / indirection** — For simple cases, having the action in a separate file adds a layer of indirection that may feel unnecessary when the action is small and tightly coupled to a single component.
+- **Module-level `'use server'` marks all exports** — Every exported function in the file becomes a Server Action. If you accidentally export a helper that should not be a public server endpoint, it could be invoked from the client.
+- **Import path dependency** — The Client Component now depends on a correct import path (`@/lib/actions`). Path aliasing (via `jsconfig.json` or `tsconfig.json`) helps, but misconfigurations can lead to confusing errors.
+- **Commented-out `'use server'` inside the function** — When the module-level directive is present, an inline `'use server'` inside each function is redundant. Leaving it commented out (as in the lesson code) can confuse future readers who may not understand why it is there.
+
+#### When to Consider Alternatives
+
+- If the component that uses the Server Action **is already a Server Component** (no `'use client'`), you can define the action inline — no separate file is needed.
+- If you prefer **co-location over separation**, you can keep Server Actions in a sibling file next to the component (e.g., `app/meals/share/actions.js`) instead of a global `lib/actions.js`.
+- For **very large applications** with many mutations, consider organizing actions by domain (e.g., `lib/actions/meals.js`, `lib/actions/users.js`) rather than a single catch-all file.
+
+### ⚙️ 121.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section walks through four incremental steps that demonstrate why Server Actions cannot be defined inline inside a Client Component and how to solve the problem by extracting them into a separate file.
+- **121.2.1** shows the conflict: a `'use server'` function defined inside a `'use client'` module triggers a build/runtime error.
+- **121.2.2** removes (comments out) the inline Server Action from the Client Component, preparing for extraction.
+- **121.2.3** creates the new `lib/actions.js` file with `'use server'` at the module level and the exported `shareMeal` function.
+- **121.2.4** completes the cycle by importing `shareMeal` from `@/lib/actions` back into the Client Component and wiring it to the form's `action` prop.
+- Together, the four steps form a **refactoring recipe** that can be applied whenever you need to use a Server Action inside a Client Component.
+
+#### 121.2.1 `server actions` does not work in `use client` component
+
+**Subsection Summary**
+- Demonstrates the **error scenario**: a `'use server'` function (`shareMeal`) is defined inline inside a module that also has `'use client'` at the top.
+- Next.js / React rejects this combination because the two directives are mutually exclusive at the inline level — the client bundle cannot contain code that is supposed to run only on the server.
+- The screenshot (`sectio03-lecture121-001.png`) shows the resulting error in the browser or terminal, confirming the incompatibility.
+- This establishes the **motivation** for the rest of the lesson: the action must be moved to a separate server-only file.
+
+```jsx
+/* app/meals/share/page.js */
+"use client";                                                   // 👈🏽 ✅ (2) client component
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';
+export default function ShareMealPage() {
+  async function shareMeal(formData){
+    'use server';                                               // 👈🏽 ✅ (1) server action
+    const meal = {
+      title: formData.get('title'),
+      summary: formData.get('summary'),
+      instructions: formData.get('instructions'),
+      image: formData.get('image'),
+      creator: formData.get('name'),
+      creator_email: formData.get('email'),
+    }
+    console.log(meal);
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+![action server inside client component](../img/sectio03-lecture121-001.png)
+
+#### 121.2.2 For `client` component, remove the `server action` away:
+
+**Subsection Summary**
+- Shows the **first refactoring step**: the inline `shareMeal` Server Action is commented out inside the Client Component.
+- The comment `// copy/paste to lib/actions.js file` serves as a reminder that the code is being relocated, not deleted.
+- At this intermediate stage the form's `action={shareMeal}` reference is **broken** (the function no longer exists in scope), so the component would fail to compile. This is intentional — the next two subsections complete the migration.
+- Keeps the `'use client'` directive untouched, confirming the component remains a Client Component.
+
+```jsx
+/* app/meals/share/page.js */
+'use client';                                                   // 👈🏽 ✅ (1)
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';
+
+export default function ShareMealPage() {
+
+  // copy/paste to lib/actions.js file                          // 👈🏽 ✅ (2)
+  // async function shareMeal(formData){
+  //   'use server';
+
+  //   const meal = {
+  //     title: formData.get('title'),
+  //     summary: formData.get('summary'),
+  //     instructions: formData.get('instructions'),
+  //     image: formData.get('image'),
+  //     creator: formData.get('name'),
+  //     creator_email: formData.get('email'),
+  //   }
+  //   console.log(meal);
+  // }
+
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+#### 121.2.3 `server action` move aways due to `client` component:
+
+**Subsection Summary**
+- Creates the new file `lib/actions.js` which contains the extracted `shareMeal` Server Action.
+- The `'use server'` directive is placed at the **module level** (line 1), marking every exported function in this file as a Server Action — this is the key difference from the inline approach.
+- The function is prefixed with `export` so it can be imported by name from any component.
+- The commented-out `// 'use server'` inside the function body (annotation ✅ (3)) is left as a reminder that it is **no longer needed** when the module-level directive is present; it would be redundant.
+- The function body itself is unchanged from the previous lesson — it extracts form data and logs the `meal` object.
+
+```jsx
+/* lib/actions.js */
+'use server';                                       // 👈🏽 ✅ (1)
+
+export async function shareMeal(formData){          // 👈🏽 ✅ (2)
+    //'use server';                                 // 👈🏽 ✅ (3)
+
+    const meal = {
+      title: formData.get('title'),
+      summary: formData.get('summary'),
+      instructions: formData.get('instructions'),
+      image: formData.get('image'),
+      creator: formData.get('name'),
+      creator_email: formData.get('email'),
+    }
+    console.log(meal);
+  }
+```
+
+#### 121.2.4 Import the `server action` into `use client` component:
+
+**Subsection Summary**
+- Completes the refactoring by importing `shareMeal` from `@/lib/actions` into the Client Component (annotation ✅ (1)).
+- The `@/` path alias resolves to the project root, making the import clean and independent of relative directory depth.
+- The `<form action={shareMeal}>` usage (annotation ✅ (2)) is identical to the previous lesson — the only change is where the function comes from (an import instead of an inline definition).
+- The commented-out code from 121.2.2 has been removed entirely, leaving a clean component with no dead code.
+- The component now has a clear separation: **rendering and interactivity** live in the Client Component, while **server-side mutation logic** lives in `lib/actions.js`.
+
+```jsx
+/* app/meals/share/page.js */
+'use client';
+import classes from './page.module.css';
+import ImagePicker from '../../components/meals/image-picker';
+import { shareMeal } from '@/lib/actions';                          // 👈🏽 ✅ (1)
+
+export default function ShareMealPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>          {/* 👈🏽 ✅ (2) */}
+          <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+[👉🏽 visit this link](http://localhost:3000/meals/share)
+
+### 🐞 121.3 Issues:
+
+- The commented-out `'use server'` inside `shareMeal` in `lib/actions.js` is redundant and may confuse readers.
+- The commented-out dead code left in `app/meals/share/page.js` (intermediate step 121.2.2) should not remain in the final codebase.
+- No input validation is performed in the Server Action before processing `formData`.
+- `console.log(meal)` is still present as a debug statement — not suitable for production.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Redundant commented-out `'use server'` inside function | ℹ️ Low Priority | `lib/actions.js:4` — The inline `// 'use server'` is unnecessary when the module-level `'use server'` directive is present on line 1. It should be removed to avoid confusion. |
+| Dead commented-out code in Client Component | ℹ️ Low Priority | `app/meals/share/page.js:8-21` — The commented-out `shareMeal` function body was left as a migration breadcrumb but should be removed now that the extraction is complete. |
+| No input validation in Server Action | ⚠️ Identified | `lib/actions.js:3-14` — The `shareMeal` function extracts `formData` values without any validation (empty strings, invalid email, missing image). Malicious or malformed data could be processed. |
+| Debug `console.log` left in Server Action | ℹ️ Low Priority | `lib/actions.js:14` — `console.log(meal)` is useful during development but should be removed or replaced with proper logging before production. |
+| All exports become Server Actions | ℹ️ Informational | `lib/actions.js:1` — The module-level `'use server'` directive means **every** exported function in this file is exposed as a callable server endpoint. If non-action helpers are added later and exported, they would unintentionally become server-callable. |
+
+### 🧱 121.4 Pending Fixes (TODO)
+
+- [ ] Remove the redundant commented-out `// 'use server'` inside the `shareMeal` function — `lib/actions.js:4`
+- [ ] Remove the commented-out dead code block (old inline `shareMeal`) from the Client Component — `app/meals/share/page.js:8-21`
+- [ ] Add server-side input validation inside `shareMeal` (check for empty/missing fields, validate email format, verify image is a `File` instance) — `lib/actions.js:6-13`
+- [ ] Remove or replace `console.log(meal)` with a structured logging utility before production — `lib/actions.js:14`
+- [ ] Consider splitting `lib/actions.js` into domain-specific files (e.g., `lib/actions/meals.js`) as the number of Server Actions grows, to prevent accidental exposure of helper functions
+- [ ] Add `aria-label="Share your meal"` to the submit button for improved accessibility — `app/meals/share/page.js:62`
+
+[↑ top — 121. Lesson 121 — *Storing Server Actions in Separate Files*](#-121-lesson-121--storing-server-actions-in-separate-files)
+
+
+
+<br>
+
+## 🔧 122. Lesson 122 — *Creating a Slug & Sanitizing User Input for XSS Protection*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [122. Lesson 122 — *Creating a Slug & Sanitizing User Input for XSS Protection*](#-122-lesson-122--creating-a-slug--sanitizing-user-input-for-xss-protection)
+- [122.1 Context](#-1221-context)
+- [122.2 Updating code according the context](#️-1222-updating-codetheory-according-the-context)
+  - [122.2.1 Create `saveMeal` function in `lib/meals.js` file](#12221-create-savemeal-function-in-libmealsjs-file)
+  - [122.2.2 Compare meal properties from `actions.js` file and `db.prepare` attribute from `initdb.js` file](#12222-compare-meal-properties-from-actionsjs-file-and-dbprepare-attribute-from-initdbjs-file)
+  - [122.2.3 Install `slugify` package](#12223-install-slugify-package)
+  - [122.2.4 Update the `saveMeal` function](#12224-update-the-savemeal-function)
+- [122.3 Issues](#-1223-issues)
+- [122.4 Pending Fixes (TODO)](#-1224-pending-fixes-todo)
+
+### 🧠 122.1 Context:
+
+This lesson addresses the preparation of user-submitted meal data **before** it can be safely persisted to the SQLite database. Two specific problems are solved: (1) generating a URL-friendly **slug** from the meal title (required by the `meals` table schema but absent from the form data), and (2) **sanitizing** the user-provided `instructions` field to prevent **Cross-Site Scripting (XSS)** attacks.
+
+The approach uses two lightweight npm packages — `slugify` and `xss` — which are imported into `lib/meals.js` and applied inside the new `saveMeal` utility function. This function mutates the `meal` object in-place, adding the `slug` property and overwriting `instructions` with a sanitized version, so the data is ready for a database `INSERT` in a subsequent lesson.
+
+#### Key Concepts
+
+1. **Slug generation** — A *slug* is a URL-safe, lowercase, hyphen-separated string derived from a human-readable title (e.g., `"Juicy Cheese Burger"` → `"juicy-cheese-burger"`). The `slugify` library handles Unicode transliteration, whitespace replacement, and special-character removal.
+2. **XSS sanitization** — Cross-Site Scripting occurs when untrusted user input containing `<script>` tags or event-handler attributes is rendered as HTML. The `xss` library parses HTML content and strips or escapes dangerous elements/attributes while preserving safe markup.
+3. **In-place mutation** — Instead of creating new local variables (`const slug = ...`), the lesson deliberately assigns back to the `meal` object (`meal.slug = ...`, `meal.instructions = ...`). This keeps the calling code simple because the same object reference is enriched with all required fields.
+4. **Schema alignment** — The `meals` table requires a `slug TEXT NOT NULL UNIQUE` column. Because the share form does not collect a slug from the user, it must be derived server-side before insertion.
+5. **Defense in depth** — Sanitization at the data-entry layer (Server Action / utility function) is a first line of defense. It should be complemented by output escaping at render time (React handles this by default for JSX expressions) and parameterized SQL queries (already used via `better-sqlite3` placeholders).
+
+#### Advantages
+
+- **Automatic slug creation** — Users never have to manually craft a URL-friendly identifier; it is derived deterministically from the title.
+- **XSS prevention at the source** — Cleaning user input before storage means the database never contains raw malicious markup, reducing risk even if output escaping is accidentally bypassed.
+- **Minimal footprint** — Both `slugify` (~5 KB) and `xss` (~30 KB) are lightweight, well-maintained packages with no heavy dependency trees.
+- **Centralized logic** — Placing slug generation and sanitization inside `saveMeal` ensures every code path that persists a meal applies the same rules, avoiding scattered, inconsistent handling.
+
+#### Disadvantages / Gotchas
+
+- **Slug collisions** — `slugify` alone does not guarantee uniqueness. Two meals with the same title will produce the same slug, violating the `UNIQUE` constraint in the database. A suffix strategy (e.g., appending a timestamp or random string) is needed for production.
+- **Overly aggressive sanitization** — The default `xss` configuration may strip legitimate HTML that the author intended (e.g., `<img>` tags, custom class attributes). Depending on requirements, the whitelist may need tuning.
+- **In-place mutation** — Mutating the incoming `meal` object can surprise callers who do not expect side effects. A functional (immutable) approach — returning a new object — is often considered safer.
+- **No validation** — Sanitization removes dangerous content but does **not** validate that the remaining content is meaningful (e.g., an empty string after stripping could still pass through).
+- **Typo in comment** — The lesson code contains `// sanatize` instead of `// sanitize`, which is a minor but notable quality issue.
+
+#### When to Consider Alternatives
+
+- If you need **guaranteed unique slugs**, consider appending a short hash, UUID segment, or auto-increment suffix rather than relying solely on `slugify`.
+- If the `instructions` field should only accept **plain text** (no HTML at all), use a simple regex strip or `DOMPurify` with an empty allowlist instead of `xss`.
+- For **large-scale applications**, consider a dedicated validation + sanitization middleware layer (e.g., `zod` for schema validation combined with `DOMPurify`) rather than ad-hoc calls inside each utility function.
+- If **immutability** is preferred in your codebase, return a new object from `saveMeal` (`return { ...meal, slug, instructions }`) instead of mutating the parameter.
+
+### ⚙️ 122.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section walks through four steps to prepare user-submitted meal data for database insertion by generating a slug and sanitizing HTML input.
+- **122.2.1** introduces the empty `saveMeal` function scaffold in `lib/meals.js`.
+- **122.2.2** compares the `meal` object from `lib/actions.js` against the `meals` table schema in `initdb.js`, revealing that the `slug` column has no corresponding form field and must be derived server-side.
+- **122.2.3** installs the `slugify` and `xss` npm packages required to create slugs and sanitize HTML.
+- **122.2.4** completes `saveMeal` by importing both packages and using them to set `meal.slug` and overwrite `meal.instructions` with sanitized content.
+- Together, the four steps form a **data-preparation recipe** that sits between form submission (Server Action) and database persistence (not yet implemented).
+
+Goal:
+- Storing meal from `lib/actions.js` file
+
+#### 122.2.1 Create `saveMeal` function in `lib/meals.js` file:
+
+**Subsection Summary**
+- Adds an empty `saveMeal` function export to `lib/meals.js`, establishing the scaffold that will hold slug generation and sanitization logic.
+- At this stage the function accepts a `meal` parameter but has no body — it serves as a placeholder for the implementation that follows in 122.2.4.
+- The existing `getMeals` and `getMeal` exports remain untouched; only a new export is appended.
+
+```jsx
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+const db = sql('meals.db');
+export async function getMeals() {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+export function getMeal(slug){
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
+}
+export function saveMeal(meal){}              // 👈🏽 ✅ (1)
+```
+
+#### 122.2.2 Compare meal properties from `actions.js` file and `db.prepare` attribute from `initdb.js` file:
+
+**Subsection Summary**
+- Performs a **side-by-side comparison** between the `meal` object constructed in the Server Action (`lib/actions.js`) and the `CREATE TABLE` schema defined in `initdb.js`.
+- The `meal` object has six properties: `title`, `summary`, `instructions`, `image`, `creator`, and `creator_email`. The table, however, also requires `slug TEXT NOT NULL UNIQUE`.
+- This mismatch is the **core motivation** for the lesson: `slug` must be generated programmatically before the meal can be inserted.
+- The `id` column is `AUTOINCREMENT` and handled by SQLite, so it does not need to be in the `meal` object.
+
+```jsx
+/* lib/actions.js */
+....
+const meal = {
+  title: formData.get('title'),
+  summary: formData.get('summary'),
+  instructions: formData.get('instructions'),
+  image: formData.get('image'),
+  creator: formData.get('name'),
+  creator_email: formData.get('email'),
+}
+....
+```
+
+and
+
+```js
+....
+`CREATE TABLE IF NOT EXISTS meals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    image TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    instructions TEXT NOT NULL,
+    creator TEXT NOT NULL,
+    creator_email TEXT NOT NULL
+)`
+....
+```
+
+`slug` is missing in `meal` from `lib/actions.js` file.
+
+
+#### 122.2.3 Install `slugify` package:
+
+**Subsection Summary**
+- Installs two npm packages in a single command: `slugify` (for URL-friendly slug generation) and `xss` (for HTML sanitization against Cross-Site Scripting attacks).
+- The dev server must be stopped before running `npm install` to avoid lock-file conflicts or hot-reload issues.
+- After installation, `package.json` gains `"slugify": "^1.6.6"` and `"xss": "^1.0.15"` under `dependencies`.
+
+1. quit the server.
+2. Run from terminal:
+```bash
+npm install slugify xss
+```
+> xss: it protects from cross-site scripting attacks.
+
+#### 122.2.4 Update the `saveMeal` function:
+
+**Subsection Summary**
+- Imports `slugify` and `xss` at the top of `lib/meals.js` (annotation ✅ (1)).
+- Inside `saveMeal`, generates a lowercase slug from `meal.title` using `slugify(meal.title, { lower: true })` and assigns it directly to `meal.slug` (annotation ✅ (3)). The commented-out line (annotation ✅ (2)) shows the alternative of storing the slug in a local variable, which was rejected in favor of in-place mutation.
+- Sanitizes `meal.instructions` by passing it through `xss()`, which strips dangerous HTML tags and attributes. The result overwrites the original `instructions` value on the `meal` object (annotation ✅ (3)).
+- The commented-out alternatives (annotation ✅ (2)) are left for educational comparison, illustrating the difference between local-variable assignment and in-place mutation.
+
+```jsx
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+import slugify from 'slugify';                                          // 👈🏽 ✅ (1)
+import xss from 'xss';                                                  // 👈🏽 ✅ (1)
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+export function getMeal(slug){
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
+}
+export function saveMeal(meal){
+  //const slug = slugify(meal.title, { lower: true });                    // 👈🏽 ✅ (2)
+  meal.slug = slugify(meal.title, { lower: true });                       // 👈🏽 ✅ (3)
+  
+  //const instructions = xss(meal.instructions);  // sanatize its content.    // 👈🏽 ✅ (2)
+  meal.instructions = xss(meal.instructions);                                 // 👈🏽 ✅ (3)
+}
+```
+
+### 🐞 122.3 Issues:
+
+- Slug generation does not handle collisions — duplicate titles will produce the same slug, violating the `UNIQUE` database constraint.
+- The `saveMeal` function mutates the incoming `meal` object in-place, which can lead to unexpected side effects for callers.
+- The commented-out code (alternative local-variable approach) adds noise and may confuse future readers.
+- The comment `// sanatize its content.` contains a typo ("sanatize" → "sanitize").
+- No validation is performed to ensure `meal.title` is non-empty before passing it to `slugify`.
+- The `saveMeal` function is not yet called from anywhere (the Server Action in `lib/actions.js` does not invoke it yet).
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Slug uniqueness not guaranteed | ⚠️ Identified | `lib/meals.js:17` — `slugify(meal.title, { lower: true })` produces the same slug for identical titles. A second meal with the same title will throw a `UNIQUE constraint failed: meals.slug` SQLite error on insertion. |
+| In-place mutation of `meal` parameter | ℹ️ Informational | `lib/meals.js:17,20` — `meal.slug = ...` and `meal.instructions = ...` mutate the caller's object. If any upstream code retains a reference to the original `meal`, it will see the mutated values unexpectedly. |
+| Commented-out dead code | ℹ️ Low Priority | `lib/meals.js:16,19` — The commented-out local-variable alternatives (`const slug = ...`, `const instructions = ...`) are educational but should be removed in a production codebase. |
+| Typo in comment | ℹ️ Low Priority | `lib/meals.js:19` — `// sanatize its content.` should read `// sanitize its content.` |
+| No validation before slugification | ⚠️ Identified | `lib/meals.js:17` — If `meal.title` is `undefined`, `null`, or an empty string, `slugify` will return an empty string, creating an invalid slug. |
+| `saveMeal` not yet invoked | ℹ️ Informational | `lib/actions.js:3-12` — The `shareMeal` Server Action constructs the `meal` object but does not call `saveMeal(meal)`. This will be addressed in a future lesson. |
+
+### 🧱 122.4 Pending Fixes (TODO)
+
+- [ ] Add a uniqueness suffix strategy (e.g., append a timestamp or short hash) to prevent slug collisions — `lib/meals.js:17`
+- [ ] Add validation to ensure `meal.title` is a non-empty string before calling `slugify` — `lib/meals.js:17`
+- [ ] Remove commented-out dead code (local-variable alternatives) once no longer needed for reference — `lib/meals.js:16,19`
+- [ ] Fix the typo `sanatize` → `sanitize` in the inline comment — `lib/meals.js:19`
+- [ ] Consider returning a new object from `saveMeal` instead of mutating the parameter for immutability — `lib/meals.js:15-21`
+- [ ] Wire `saveMeal` into the `shareMeal` Server Action so the data-preparation logic is actually executed — `lib/actions.js:12`
+- [ ] Add unit tests for `saveMeal` to verify slug generation and XSS sanitization behavior — `lib/meals.js:15-21`
+
+[↑ top — 122. Lesson 122 — *Creating a Slug & Sanitizing User Input for XSS Protection*](#-122-lesson-122--creating-a-slug--sanitizing-user-input-for-xss-protection)
+
+
+
+
+
 
 
 
