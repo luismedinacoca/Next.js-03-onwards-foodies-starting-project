@@ -6347,6 +6347,323 @@ export function saveMeal(meal){
 [↑ top — 122. Lesson 122 — *Creating a Slug & Sanitizing User Input for XSS Protection*](#-122-lesson-122--creating-a-slug--sanitizing-user-input-for-xss-protection)
 
 
+<br>
+
+## 🔧 123. Lesson 123 — *Storing Uploaded Images & Storing Data in the Database*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [123. Lesson 123 — *Storing Uploaded Images & Storing Data in the Database*](#-123-lesson-123--storing-uploaded-images--storing-data-in-the-database)
+- [123.1 Context](#-1231-context)
+- [123.2 Updating code according the context](#️-1232-updating-codetheory-according-the-context)
+  - [123.2.1 Extract the file extension and build a unique file name with a timestamp](#12321-extract-the-file-extension-and-build-a-unique-file-name-with-a-timestamp)
+  - [123.2.2 Import Node.js `fs`, write the image to disk, and store the public path](#12322-import-nodejs-fs-write-the-image-to-disk-and-store-the-public-path)
+  - [123.2.3 Refactor the timestamp helper and add the `INSERT INTO meals` SQL statement](#12323-refactor-the-timestamp-helper-and-add-the-insert-into-meals-sql-statement)
+  - [123.2.4 Wire `saveMeal` into the `shareMeal` Server Action](#12324-wire-savemeal-into-the-sharemeal-server-action)
+  - [123.2.5 Redirect the user to `/meals` after saving](#12325-redirect-the-user-to-meals-after-saving)
+- [123.3 Issues](#-1233-issues)
+- [123.4 Pending Fixes (TODO)](#-1234-pending-fixes-todo)
+
+### 🧠 123.1 Context:
+
+This lesson completes the **meal-creation pipeline** started in Lesson 122. Where the previous lesson prepared the data (slug + XSS sanitization), this lesson tackles the two remaining persistence steps: (1) **writing the uploaded image file to the filesystem** under `public/images/`, and (2) **inserting the complete meal record into the SQLite database** via a parameterized `INSERT` statement. A `redirect('/meals')` call at the end of the Server Action sends the user back to the meals list so they immediately see the newly added meal.
+
+Images are stored on the **filesystem** rather than as BLOBs inside SQLite. This is a deliberate architectural choice — databases are optimized for structured, queryable data; large binary files are better served directly by the web server or a CDN. The database row only stores the **public path** (`/images/<fileName>`) so the front-end can reference it in `<img src="…">`.
+
+#### Key Concepts
+
+1. **File-system storage for uploads** — The uploaded `File` object is read into memory via `arrayBuffer()`, then written to disk through a Node.js `fs.createWriteStream`. The resulting path (`/images/<fileName>`) is stored in the database, not the binary data itself.
+2. **Unique file naming with a timestamp** — To prevent file-name collisions when two meals share the same slug, a datetime tag (e.g., `20260212_201322`) is appended to every file name. The helper function `getTimeTag()` produces this from `new Date().toISOString()`.
+3. **`Buffer.from(arrayBuffer)`** — The Web API `File.arrayBuffer()` returns an `ArrayBuffer`; Node.js streams expect a `Buffer`. `Buffer.from()` bridges the two APIs.
+4. **Parameterized SQL with `better-sqlite3`** — Named placeholders (`@title`, `@slug`, etc.) map directly to properties of the object passed to `.run(meal)`, avoiding manual value ordering and protecting against SQL injection.
+5. **`redirect()` from `next/navigation`** — After a successful mutation, calling `redirect('/meals')` inside a Server Action triggers a server-side redirect. This is the idiomatic Next.js pattern for post-mutation navigation and prevents the user from re-submitting by refreshing.
+6. **Stream error callback** — `stream.write()` accepts an optional callback whose first argument is an `error` object. If writing fails (e.g., disk full, permission denied), the callback can throw to surface the problem.
+
+#### Advantages
+
+- **Performance** — Serving images directly from the filesystem (or a CDN in production) is far more efficient than reading BLOBs from a database on every request.
+- **Simplicity** — A single `fs.createWriteStream` + `stream.write` pair is all that is needed; no third-party upload library is required for local development.
+- **Collision avoidance** — The timestamp suffix ensures unique filenames even when slugs repeat, complementing the `UNIQUE` constraint on the `slug` column itself.
+- **End-to-end flow** — With `saveMeal` wired into `shareMeal` and followed by `redirect`, the user has a seamless create → persist → view experience without manual page navigation.
+- **Parameterized queries** — Using `@property` placeholders delegates escaping to `better-sqlite3`, eliminating SQL injection risk.
+
+#### Disadvantages / Gotchas
+
+- **`public/` directory caveat** — Files saved to `public/images/` during development are available immediately, but in a **production build** Next.js only copies `public/` at build time. Dynamically written files after the build will not be served unless additional server configuration is provided (e.g., a custom static middleware or an external storage service like S3).
+- **No error propagation from the stream callback** — In the lesson code the `stream.write` callback references `error` but the original snippet (123.2.2) does not declare `error` as a parameter (fixed in the actual `lib/meals.js`). Even with the fix, throwing inside an async callback does **not** reject the enclosing `async` function's promise — the error may be swallowed silently.
+- **No file-size or MIME-type validation** — Any file the user selects is written to disk without checking size limits or verifying it is actually an image, opening the door to abuse.
+- **In-place mutation continues** — `meal.image` is overwritten from a `File` object to a string path (`/images/…`), which could confuse callers that still expect a `File`.
+- **Synchronous `db.prepare(…).run(meal)` after async file I/O** — Mixing a synchronous SQLite call with an async stream write means the database row may be inserted before the file has finished flushing to disk.
+
+#### When to Consider Alternatives
+
+- For **production deployments**, replace the local filesystem write with an **object-storage service** (AWS S3, Cloudflare R2, Vercel Blob) so uploaded files survive container restarts and can be served via a CDN.
+- If **file validation** is critical, use a library like `file-type` to verify the MIME type from the file's magic bytes before saving, and enforce a maximum file size.
+- For **guaranteed write completion**, consider using `fs.promises.writeFile()` (or wrapping the stream in a `Promise`) instead of `stream.write` with a callback, so `await` properly gates the subsequent database insert.
+- If you need **transactional guarantees** (image + DB row succeed or both roll back), wrap the two operations in a try/catch that deletes the written file if the `INSERT` fails.
+- For **large-scale apps**, consider a dedicated upload endpoint with progress tracking and resumable uploads rather than processing the file inside a Server Action.
+
+### ⚙️ 123.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section implements the full **image-to-disk + data-to-database** pipeline across five incremental steps, completing the meal-creation feature.
+- **123.2.1** extracts the file extension from the uploaded image and constructs a unique filename by appending a datetime tag to the slug.
+- **123.2.2** imports Node.js `fs`, creates a write stream to `public/images/`, reads the image into a buffer, writes it to disk, and stores the resulting public path on the `meal` object.
+- **123.2.3** refactors the timestamp into a concise `getTimeTag()` helper and adds the `INSERT INTO meals` SQL statement that persists the entire `meal` object to SQLite.
+- **123.2.4** wires the `saveMeal` function into the `shareMeal` Server Action so form submissions are actually persisted.
+- **123.2.5** adds `redirect('/meals')` after `saveMeal` to navigate the user to the meals list upon success.
+- Together, the five steps transform a raw form submission into a stored database record with an image on the filesystem and then navigate the user to see the result.
+
+* Image should be store on the file system, not in the database.
+* storing file in the database is a bad idea.
+* bad for performance
+
+#### 123.2.1 Extract the file extension and build a unique file name with a timestamp
+
+**Subsection Summary**
+- Extends the `saveMeal` function (from Lesson 122) with logic to derive a **unique filename** for the uploaded image.
+- Extracts the file extension (e.g., `.png`, `.jpg`) by splitting the image name on `.` and taking the last segment (annotation ✅ (1)).
+- Generates a datetime string (e.g., `20260212_201322`) from `Date.now()` to use as a collision-avoidance suffix (annotation ✅ (2)).
+- Combines the slug, datetime, and extension into the final filename (annotation ✅ (3)).
+- At this stage the function does **not** yet write the file to disk — that is handled in 123.2.2.
+
+```jsx
+/* lib/meals.js */
+import sql from 'better-sqlite3';
+import slugify from 'slugify';
+import xss from 'xss';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+export function getMeal(slug){
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
+}
+export function saveMeal(meal){
+  meal.slug = slugify(meal.title, { lower: true });
+  meal.instructions = xss(meal.instructions);
+
+  // add datetime in order to avoid the override of the same file     // 👈🏽 ✅ (2)
+  const myTime = Date.now();
+  const myDate = new Date(myTime)
+    .toISOString()
+    .replace('T', '_')
+    .replace(/\..*/,'')
+    .replace(/:/g,'');
+
+  const extension = meal.image.split('.').pop();                      // 👈🏽 ✅ (1) get the extension of the image: .png .jpeg .jpg
+  const fileName = `${meal.slug}_${myDate}.${extension}`;             // 👈🏽 ✅ (3)
+}
+```
+
+#### 123.2.2 Import Node.js `fs`, write the image to disk, and store the public path
+
+**Subsection Summary**
+- Imports Node.js built-in `fs` module using the `node:` protocol prefix (annotation ✅ (1)).
+- Changes `saveMeal` from synchronous to `async` so the image can be read with `await meal.image.arrayBuffer()` (annotation ✅ (3)).
+- Opens a **write stream** targeting `public/images/<fileName>` via `fs.createWriteStream` (annotation ✅ (2)).
+- Adds `.name` to `meal.image.name.split('.')` because `meal.image` is a Web API `File` object (not a plain string), so `.name` is needed to access the original filename (annotation ✅ (4)).
+- Converts the `ArrayBuffer` to a Node.js `Buffer` and writes it to disk with `stream.write(Buffer.from(bufferedImage), callback)` (annotation ✅ (5)). The callback checks for errors.
+- Overwrites `meal.image` with the **public web path** (`/images/<fileName>`) so the database stores a URL-friendly reference instead of the binary file (annotation ✅ (6)).
+
+```jsx
+/* lib/meals.js */
+import fs from 'node:fs';                                           // 👈🏽 ✅ (1)
+
+import sql from 'better-sqlite3';
+import slugify from 'slugify';
+import xss from 'xss';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+export function getMeal(slug){
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
+}
+export async function saveMeal(meal){
+  meal.slug = slugify(meal.title, { lower: true });
+  meal.instructions = xss(meal.instructions);
+
+  const myTime = Date.now();
+  const myDate = new Date(myTime)
+    .toISOString()
+    .replace('T', '_')
+    .replace(/\..*/,'')
+    .replace(/:/g,'');
+
+  const extension = meal.image.name.split('.').pop();                 // 👈🏽 ✅ (4) ".name" added
+  const fileName = `${meal.slug}_${myDate}.${extension}`;
+
+  // Opens a file-writing stream to save the image inside public/images/
+  const stream = fs.createWriteStream(`public/images/${fileName}`);   // 👈🏽 ✅ (2)
+
+  // Reads the uploaded image file into memory as raw bytes
+  const bufferedImage = await meal.image.arrayBuffer();               // 👈🏽 ✅ (3)
+
+  // Writes those bytes to the file on disk
+  stream.write(Buffer.from(bufferedImage), () => {                    // 👈🏽 ✅ (5)
+    if(error) {
+      throw new Error('Saving image failed!')
+    }
+  });
+
+  // Stores the public web path of the image (so it can be shown in <img src="...">)
+  meal.image = `/images/${fileName}`;                                 // 👈🏽 ✅ (6)
+}
+```
+
+#### 123.2.3 Refactor the timestamp helper and add the `INSERT INTO meals` SQL statement
+
+**Subsection Summary**
+- Refactors the verbose timestamp logic from 123.2.1/123.2.2 into a compact arrow function `getTimeTag()` that chains `toISOString().slice(0,19).replaceAll(…)` into a single expression.
+- Adds the `db.prepare(…).run(meal)` call (annotation ✅ (1)) that **inserts the meal record into SQLite** — this is the first time actual data reaches the database.
+- The SQL `INSERT INTO meals` statement (annotation ✅ (2)) lists all seven non-auto-increment columns and uses named placeholders (`@title`, `@slug`, etc.) that `better-sqlite3` maps directly to properties of the `meal` object.
+- `.run(meal)` (annotation ✅ (3)) executes the prepared statement with the enriched `meal` object (which now contains `slug`, sanitized `instructions`, and the filesystem image path).
+- The `stream.write` callback still references an undeclared `error` parameter — this bug is carried over from 123.2.2 and is noted in the Issues section.
+
+```jsx
+/* lib/meals.js */
+import fs from 'node:fs';
+import sql from 'better-sqlite3';
+import slugify from 'slugify';
+import xss from 'xss';
+
+const db = sql('meals.db');
+
+export async function getMeals() {
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  return db.prepare('SELECT * FROM meals').all();
+}
+
+export function getMeal(slug){
+  return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
+}
+
+export async function saveMeal(meal){
+  meal.slug = slugify(meal.title, { lower: true });
+  meal.instructions = xss(meal.instructions);
+
+  const getTimeTag = () => 
+    new Date().toISOString().slice(0, 19).replaceAll('-', '').replace('T', '_').replaceAll(':', '');
+
+  const extension = meal.image.name.split('.').pop(); 
+  const fileName = `${meal.slug}_${getTimeTag()}.${extension}`;
+  const stream = fs.createWriteStream(`public/images/${fileName}`);
+  const bufferedImage = await meal.image.arrayBuffer();
+  stream.write(Buffer.from(bufferedImage), () => {
+    if(error) {
+      throw new Error('Saving image failed!')
+    }
+  });
+  meal.image = `/images/${fileName}`;
+
+  db.prepare(`                                                              // 👈🏽 ✅ (1)
+    INSERT INTO meals                                                       // 👈🏽 ✅ (2)
+      (title, summary, instructions, creator, creator_email, image, slug)      
+    VALUES (                                                                // 👈🏽 ✅ (2)
+      @title,
+      @summary,
+      @instructions,
+      @creator,
+      @creator_email,
+      @image,
+      @slug
+    )
+  `).run(meal)                                                              // 👈🏽 ✅ (3)
+}
+```
+
+#### 123.2.4 Wire `saveMeal` into the `shareMeal` Server Action
+
+**Subsection Summary**
+- Updates `lib/actions.js` to actually **import** `saveMeal` from `./meals` (annotation ✅ (1)) and **call** it with the constructed `meal` object (annotation ✅ (2)).
+- This closes the gap identified in Lesson 122 where `saveMeal` existed but was never invoked from the Server Action.
+- The `console.log(meal)` line is commented out, indicating it was used for debugging and is no longer needed.
+- The import path uses `'./meals'` (relative) rather than the `@/lib/meals` alias — this is corrected in 123.2.5.
+- The screenshot (`section03-lecture123-001.png`) shows the result of a successful submission in the browser, confirming the pipeline works end-to-end.
+
+```jsx
+/* lib/actions.js */
+'use server';
+
+import { saveMeal } from './meals';                                         // 👈🏽 ✅ (1)
+
+export async function shareMeal(formData){
+    const meal = {
+      title: formData.get('title'),
+      summary: formData.get('summary'),
+      instructions: formData.get('instructions'),
+      image: formData.get('image'),
+      creator: formData.get('name'),
+      creator_email: formData.get('email'),
+    }
+    //console.log(meal);
+    
+    await saveMeal(meal);                                                   // 👈🏽 ✅ (2)
+  }
+```
+
+![empanadas added](../img/section03-lecture123-001.png)
+
+#### 123.2.5 Redirect the user to `/meals` after saving
+
+**Subsection Summary**
+- Imports `redirect` from `next/navigation` (annotation ✅ (1)) — the Next.js utility for performing server-side redirects from Server Actions.
+- After `await saveMeal(meal)` completes, calls `redirect('/meals')` (annotation ✅ (1)) to navigate the user to the meals listing page where the newly created meal will appear.
+- The import path for `saveMeal` is updated to use the `@/lib/meals` alias (Next.js module alias) for consistency with the rest of the project.
+- This is the **final step** of the meal-creation feature: the user fills the form → the Server Action extracts data → `saveMeal` writes the image and inserts the DB row → `redirect` sends the user to `/meals`.
+
+```jsx
+/* lib/actions.js */
+'use server';
+import { saveMeal } from '@/lib/meals';
+import { redirect } from 'next/navigation';                                 // 👈🏽 ✅ (1)
+
+export async function shareMeal(formData){
+  const meal = {
+    title: formData.get('title'),
+    summary: formData.get('summary'),
+    instructions: formData.get('instructions'),
+    image: formData.get('image'),
+    creator: formData.get('name'),
+    creator_email: formData.get('email'),
+  }
+  await saveMeal(meal);
+  redirect('/meals');                                                       // 👈🏽 ✅ (1)  
+}
+```
+
+### 🐞 123.3 Issues:
+| Issue | Status | Log/Error |
+|---|---|---|
+| Missing `error` parameter in `stream.write` callback | ✅ Fixed | `lib/meals.js:31` — Lesson snippet 123.2.2 uses `(error)` implicitly but does not declare it as the callback parameter. The actual code file has `(error) => {` which is correct. |
+| `public/images/` not served after production build | ⚠️ Identified | `lib/meals.js:27` — `fs.createWriteStream('public/images/…')` writes files that exist at runtime but are absent from the build-time `public/` snapshot. In production, uploaded images will 404. |
+| No file-size or MIME-type validation | ⚠️ Identified | `lib/meals.js:24-29` — The uploaded `File` is written to disk without any checks. A user could upload a 500 MB non-image file and it would be stored. |
+| Error inside `stream.write` callback is not awaited | ⚠️ Identified | `lib/meals.js:31-34` — `throw new Error('Saving image failed!')` inside the callback does not propagate to the `async saveMeal` promise. The DB insert at line 39 runs regardless of whether the write succeeded. |
+| No rollback on failed `INSERT` | ⚠️ Identified | `lib/meals.js:27,39-51` — If `db.prepare(…).run(meal)` throws (e.g., `UNIQUE constraint failed`), the already-written image file at `public/images/<fileName>` is not deleted, creating an orphan. |
+| In-place mutation of `meal.image` from `File` to `string` | ℹ️ Informational | `lib/meals.js:37` — `meal.image = '/images/…'` silently changes the type from a `File` object to a string path. Callers retaining a reference to the original `meal` will see this change. |
+
+### 🧱 123.4 Pending Fixes (TODO)
+
+- [ ] Replace the `stream.write` callback pattern with `fs.promises.writeFile()` (or wrap the stream in a `Promise`) so errors properly reject the enclosing `async` function — `lib/meals.js:27-35`
+- [ ] Add file-size and MIME-type validation before writing to disk (e.g., reject files > 5 MB or non-image types) — `lib/meals.js:24-29`
+- [ ] Wrap the file write + DB insert in a try/catch that deletes the written image if the `INSERT` fails — `lib/meals.js:27-51`
+- [ ] For production, migrate image storage to an external service (S3, Cloudflare R2, Vercel Blob) instead of writing to `public/images/` — `lib/meals.js:27`
+- [ ] Consider returning a new object from `saveMeal` instead of mutating `meal` in-place — `lib/meals.js:17-51`
+- [ ] Add input validation to ensure all required fields (`title`, `summary`, `instructions`, `image`, `creator`, `creator_email`) are present and non-empty before processing — `lib/meals.js:17-19`
+- [ ] Add unit/integration tests for the full `saveMeal` flow (file write + DB insert + error paths) — `lib/meals.js:17-51`
+
+[↑ top — 123. Lesson 123 — *Storing Uploaded Images & Storing Data in the Database*](#-123-lesson-123--storing-uploaded-images--storing-data-in-the-database)
+
 
 
 
