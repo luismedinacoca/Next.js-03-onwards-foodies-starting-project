@@ -6224,7 +6224,7 @@ export async function getMeals() {
 export function getMeal(slug){
   return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
 }
-export function saveMeal(meal){}              // 👈🏽 ✅ (1)
+export function saveMeal(meal){....}              // 👈🏽 ✅ (1)
 ```
 
 #### 122.2.2 Compare meal properties from `actions.js` file and `db.prepare` attribute from `initdb.js` file:
@@ -6255,7 +6255,7 @@ and
 ....
 `CREATE TABLE IF NOT EXISTS meals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL UNIQUE,    -- 👈🏽 ✅ 🤔
     title TEXT NOT NULL,
     image TEXT NOT NULL,
     summary TEXT NOT NULL,
@@ -6489,7 +6489,7 @@ export async function getMeals() {
 export function getMeal(slug){
   return db.prepare('SELECT * FROM meals WHERE slug = ?').get(slug)
 }
-export async function saveMeal(meal){
+export async function saveMeal(meal){                                 // 👈🏽 ✅ (3) 'async'
   meal.slug = slugify(meal.title, { lower: true });
   meal.instructions = xss(meal.instructions);
 
@@ -6504,12 +6504,17 @@ export async function saveMeal(meal){
   const fileName = `${meal.slug}_${myDate}.${extension}`;
 
   // Opens a file-writing stream to save the image inside public/images/
+  // 1. You prepare an empty bucket and say:  
+  //    "From now on, anything I put in this bucket goes straight into a file called cat.jpg"
   const stream = fs.createWriteStream(`public/images/${fileName}`);   // 👈🏽 ✅ (2)
 
   // Reads the uploaded image file into memory as raw bytes
-  const bufferedImage = await meal.image.arrayBuffer();               // 👈🏽 ✅ (3)
+  // 2. You take the photo that came from the internet form
+  //    and you load ALL of it into your computer's memory (RAM)
+  const bufferedImage = await meal.image.arrayBuffer();               // 👈🏽 ✅ (3) 'await'
 
   // Writes those bytes to the file on disk
+  // 3. You start pouring the toy box (photo) into the funnel (stream)
   stream.write(Buffer.from(bufferedImage), () => {                    // 👈🏽 ✅ (5)
     if(error) {
       throw new Error('Saving image failed!')
@@ -6566,6 +6571,7 @@ export async function saveMeal(meal){
   });
   meal.image = `/images/${fileName}`;
 
+  // saving in the database:
   db.prepare(`                                                              // 👈🏽 ✅ (1)
     INSERT INTO meals                                                       // 👈🏽 ✅ (2)
       (title, summary, instructions, creator, creator_email, image, slug)      
@@ -6645,7 +6651,6 @@ export async function shareMeal(formData){
 ### 🐞 123.3 Issues:
 | Issue | Status | Log/Error |
 |---|---|---|
-| Missing `error` parameter in `stream.write` callback | ✅ Fixed | `lib/meals.js:31` — Lesson snippet 123.2.2 uses `(error)` implicitly but does not declare it as the callback parameter. The actual code file has `(error) => {` which is correct. |
 | `public/images/` not served after production build | ⚠️ Identified | `lib/meals.js:27` — `fs.createWriteStream('public/images/…')` writes files that exist at runtime but are absent from the build-time `public/` snapshot. In production, uploaded images will 404. |
 | No file-size or MIME-type validation | ⚠️ Identified | `lib/meals.js:24-29` — The uploaded `File` is written to disk without any checks. A user could upload a 500 MB non-image file and it would be stored. |
 | Error inside `stream.write` callback is not awaited | ⚠️ Identified | `lib/meals.js:31-34` — `throw new Error('Saving image failed!')` inside the callback does not propagate to the `async saveMeal` promise. The DB insert at line 39 runs regardless of whether the write succeeded. |
@@ -6663,6 +6668,327 @@ export async function shareMeal(formData){
 - [ ] Add unit/integration tests for the full `saveMeal` flow (file write + DB insert + error paths) — `lib/meals.js:17-51`
 
 [↑ top — 123. Lesson 123 — *Storing Uploaded Images & Storing Data in the Database*](#-123-lesson-123--storing-uploaded-images--storing-data-in-the-database)
+
+
+
+<br>
+
+## 🔧 124. Lesson 124 — *Managing the Form Submission Status with useFormStatus*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [124. Lesson 124 — *Managing the Form Submission Status with useFormStatus*](#-124-lesson-124--managing-the-form-submission-status-with-useformstatus)
+- [124.1 Context](#-1241-context)
+- [124.2 Updating code according the context](#️-1242-updating-codetheory-according-the-context)
+  - [124.2.1 First attempt — using `useFormStatus` directly in the page component](#12421-first-attempt--using-useformstatus-directly-in-the-page-component)
+  - [124.2.2 Rollback — reverting `ShareMealPage` to a Server Component](#12422-rollback--reverting-sharemealpage-to-a-server-component)
+  - [124.2.3 Correct approach — extracting a `MealsFormSubmit` Client Component](#12423-correct-approach--extracting-a-mealsformsubmit-client-component)
+  - [124.2.4 Integrating `MealsFormSubmit` into the share page](#12424-integrating-mealsformsubmit-into-the-share-page)
+- [124.3 Issues](#-1243-issues)
+- [124.4 Pending Fixes (TODO)](#-1244-pending-fixes-todo)
+
+### 🧠 124.1 Context:
+
+After implementing the meal-creation pipeline (Lessons 122–123), the form works but provides **no visual feedback** while the Server Action is running. Because `saveMeal` writes an image to disk, inserts a database row, and then redirects, the operation can take several seconds — during which the user sees nothing and may click "Share Meal" again, risking duplicate submissions. This lesson introduces the React DOM hook **`useFormStatus`** to solve that UX gap.
+
+`useFormStatus` is a React 18+ hook exported from `react-dom` that reports the current status of the **nearest ancestor `<form>`**. Its most commonly used property is `pending` — a boolean that is `true` while the form's `action` function is executing. This allows the UI to disable the submit button and swap the label to "Submitting…" during processing.
+
+A critical constraint is that `useFormStatus` is a **client-side hook**, which means it requires `'use client'`. The lesson walks through the mistake of placing it directly in the page component (which would force the entire page — and all its children — into a Client Component), and then demonstrates the correct pattern: extracting a small, focused **Client Component** (`MealsFormSubmit`) that contains only the hook and the submit button, keeping the rest of the page as a Server Component.
+
+#### Key Concepts
+
+1. **`useFormStatus` hook** — Imported from `react-dom`, it returns an object with a `pending` boolean that reflects whether the enclosing `<form>`'s action is currently executing. It must be called from a component that is **rendered inside** a `<form>`, not in the component that renders the `<form>` itself.
+2. **Client Component boundary** — React Server Components cannot use hooks. Adding `'use client'` to a page file converts the entire page (and its descendants) into Client Components, negating the benefits of server rendering. The solution is to push the hook into the smallest possible Client Component.
+3. **Component extraction pattern** — Instead of converting a page to a Client Component, extract only the interactive element (e.g., the submit button) into its own `'use client'` file. This keeps data-fetching, SEO-critical markup, and Server Actions on the server.
+4. **Pending state UX** — Disabling the button and changing its label while `pending` is `true` prevents duplicate submissions and communicates progress to the user.
+5. **Destructuring** — `const { pending } = useFormStatus()` extracts only the `pending` property; the hook also exposes `data`, `method`, and `action`, which are ignored here.
+
+#### Advantages
+
+- **Prevents duplicate submissions** — Disabling the button while the Server Action runs makes it impossible for the user to accidentally submit the form twice.
+- **Immediate feedback** — Swapping the button label to "Submitting…" signals that the action is in progress, improving perceived responsiveness.
+- **Minimal client-side footprint** — By isolating the hook in a tiny `MealsFormSubmit` component, the `ShareMealPage` and most of the form remain Server Components with zero client-side JavaScript overhead.
+- **No external dependencies** — `useFormStatus` ships with `react-dom`; no additional libraries are needed.
+- **Composable** — The extracted `MealsFormSubmit` can be reused in any form that uses Server Actions, not just the share-meal page.
+
+#### Disadvantages / Gotchas
+
+- **Must be called inside a `<form>` descendant** — If `useFormStatus` is called in the component that _renders_ the `<form>` (rather than a child of it), `pending` will always be `false`. This is a common mistake and is demonstrated in step 124.2.1.
+- **Requires `'use client'`** — The hook cannot be used in a Server Component. Placing it directly in a page component forces the entire page to become a Client Component, which is the anti-pattern shown in this lesson.
+- **Only tracks the nearest ancestor form** — If your component is nested inside multiple forms, `useFormStatus` only reflects the closest one.
+- **No error state** — `useFormStatus` does not expose whether the action succeeded or failed; additional error-handling logic (e.g., `useActionState`) is needed for that.
+- **Button-only feedback** — The current implementation only changes the button; there is no loading spinner, progress bar, or toast notification.
+
+#### When to Consider Alternatives
+
+- If you need **detailed error and success state** management (not just "pending"), consider `useActionState` (React 19) or a custom state machine that tracks the full lifecycle.
+- If **multiple elements** need to react to the form status (e.g., input fields should also be disabled, a progress indicator should appear elsewhere), consider lifting state or using a context provider wrapping the form.
+- For **optimistic UI updates** (showing the result before the server confirms), use `useOptimistic` in combination with `useFormStatus`.
+- If the form is entirely client-rendered and does not use Server Actions, standard `useState` + `onSubmit` handlers may be simpler.
+
+### ⚙️ 124.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section demonstrates the problem of adding submission feedback to a Server Action form and walks through two failed/suboptimal approaches before arriving at the correct pattern.
+- **124.2.1** attempts to use `useFormStatus` directly inside the page component, which triggers a build error because the page is a Server Component.
+- **124.2.2** rolls back the page to its original Server Component state after recognizing that adding `'use client'` would convert the entire page into a Client Component.
+- **124.2.3** implements the correct solution: a small, dedicated `MealsFormSubmit` Client Component that encapsulates `useFormStatus` and the submit button.
+- **124.2.4** integrates `MealsFormSubmit` into the share page, replacing the plain `<button>` while keeping the page as a Server Component.
+- Together, these steps illustrate the **component extraction pattern** — the standard Next.js technique for using client-side hooks without sacrificing server rendering.
+
+#### 124.2.1 First attempt — using `useFormStatus` directly in the page component
+
+**Subsection Summary**
+- Imports `useFormStatus` from `react-dom` directly in `app/meals/share/page.js` (annotation ✅ (1)) and calls it at the top of the component (annotation ✅ (2)).
+- Changes the button label to `"Submitting..."` (annotation ✅ (3)) as a static placeholder — the conditional logic is not yet wired.
+- This approach fails because `ShareMealPage` is a **Server Component** and hooks are not allowed in Server Components. The screenshot (`section03-lecture124-001.png`) shows the resulting error.
+- Two possible fixes are discussed: (a) adding `'use client'` to the top of the file, or (b) extracting the hook into a separate Client Component. Option (a) is rejected because it would convert the **entire page** into a Client Component, which is undesirable.
+
+```jsx
+/* app/meals/share/page.js */
+import { useFormStatus } from 'react-dom';                                            // 👈🏽 ✅ (1)
+import ImagePicker from '../../components/meals/image-picker';
+import { shareMeal } from '@/lib/actions';
+import classes from './page.module.css';
+
+export default function ShareMealPage() {
+  const status = useFormStatus();       // "status.pending"                           // 👈🏽 ✅ (2)
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>
+            <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          <p className={classes.actions}>
+            <button type="submit">Submitting...</button>                                {/* 👈🏽 ✅ (3) */}
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+![hook - client component](../img/section03-lecture124-001.png)
+
+Posible Solutions:
+* adding `'use client'` at top.
+
+Another issue:
+* This component become a total `client` component due to `<button type="submit">Share Meal</button>`
+
+#### 124.2.2 Rollback — reverting `ShareMealPage` to a Server Component
+
+**Subsection Summary**
+- Reverts all changes from 124.2.1 — removes the `useFormStatus` import and the hook call — restoring the page to a plain Server Component.
+- The submit button goes back to its original static `"Share Meal"` label with no pending-state logic.
+- This rollback is necessary because the approach in 124.2.1 would have required `'use client'`, converting the entire page (including data-fetching and layout markup) into a Client Component.
+- The clean rollback sets the stage for the correct solution in 124.2.3: extracting only the submit button into its own Client Component.
+
+```jsx
+/* app/meals/share/page.js */
+import ImagePicker from '../../components/meals/image-picker';
+import { shareMeal } from '@/lib/actions';
+import classes from './page.module.css';
+
+export default function ShareMealPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>
+            <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          <p className={classes.actions}>
+            <button type="submit">Share Meal</button>
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+#### 124.2.3 Correct approach — extracting a `MealsFormSubmit` Client Component
+
+**Subsection Summary**
+- Creates a new file `app/components/meals/meals-form-submit.js` containing a dedicated Client Component for the submit button (annotation ✅ (1)).
+- Marks the file with `'use client'` (annotation ✅ (2)) so the hook can be used without affecting the parent page's Server Component status.
+- Imports `useFormStatus` from `react-dom` and destructures `{ pending }` (annotation ✅ (3)).
+- Uses `pending` in two places: to **disable** the button via the `disabled` attribute (annotation ✅ (4)) and to **conditionally render** the label as `"Submitting..."` or `"Share Meal"` (annotation ✅ (3)).
+- This is the **component extraction pattern** — the standard Next.js approach for using client-side hooks in an otherwise server-rendered page.
+
+```jsx
+/* app/components/meals/meals-form-submit.js */
+'use client'                                              // 👈🏽 ✅ (2)
+import { useFormStatus } from 'react-dom';                // 👈🏽 ✅ (3)
+const MealsFormSubmit = () => {                           // 👈🏽 ✅ (1)
+  const { pending } = useFormStatus();                    // 👈🏽 ✅ (3)
+
+  return (
+    <button disabled={pending}>                           {/* 👈🏽 ✅ (4) */}
+      { pending ? 'Submitting...' : "Share Meal" }        {/* 👈🏽 ✅ (3) */}
+    </button>
+  )
+}
+export default MealsFormSubmit;
+```
+
+#### 124.2.4 Integrating `MealsFormSubmit` into the share page
+
+**Subsection Summary**
+- Imports the newly created `MealsFormSubmit` component using the `@/` alias (annotation ✅ (1)).
+- Replaces the plain `<button type="submit">Share Meal</button>` with `<MealsFormSubmit />` (annotation ✅ (2)). The original button is commented out for reference.
+- The page remains a **Server Component** — only the `MealsFormSubmit` child is a Client Component, keeping the client-side JavaScript footprint minimal.
+- The screenshot (`section03-lecture124-002.png`) shows the button in its "Submitting…" disabled state during form submission, confirming the hook works correctly.
+
+```jsx
+/* app/meals/share/page.js */
+import ImagePicker from '../../components/meals/image-picker';
+import { shareMeal } from '@/lib/actions';
+import classes from './page.module.css';
+import MealsFormSubmit from '@/app/components/meals/meals-form-submit';                     // 👈🏽 ✅ (1)
+
+export default function ShareMealPage() {
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={shareMeal}>
+            <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          <p className={classes.actions}>
+            {/* <button type="submit">Share Meal</button> */}
+            <MealsFormSubmit />                                                             {/* 👈🏽 ✅ (2) */}
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+![meals-form-submit in submitting state](../img/section03-lecture124-002.png)
+
+### 🐞 124.3 Issues:
+
+- The `MealsFormSubmit` component does not provide any visual loading indicator beyond a text change (no spinner or animation).
+- The commented-out `<button>` in `app/meals/share/page.js:46` is dead code that may confuse future readers.
+- No accessibility attributes (e.g., `aria-busy`, `aria-disabled`) are applied to the button during the pending state.
+- The component does not handle or display errors from the Server Action — only the "pending" state is managed.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| No visual loading indicator | ℹ️ Low Priority | `app/components/meals/meals-form-submit.js:10-12` — The button only changes its text label to "Submitting…"; there is no spinner, animation, or other visual cue to reinforce that the action is in progress. |
+| Commented-out dead code | ℹ️ Low Priority | `app/meals/share/page.js:46` — `{/* <button type="submit">Share Meal</button> */}` is left in for reference but is dead code in production. |
+| Missing accessibility attributes | ℹ️ Informational | `app/components/meals/meals-form-submit.js:10` — The button is disabled via `disabled={pending}` but does not set `aria-busy="true"` or `aria-label` to communicate the pending state to screen readers. |
+| No error feedback to user | ⚠️ Identified | `app/components/meals/meals-form-submit.js:6-13` — `useFormStatus` only exposes `pending`; if the Server Action throws, the user sees the button re-enable with no error message. A complementary error-handling mechanism (e.g., `useActionState`) is needed. |
+
+### 🧱 124.4 Pending Fixes (TODO)
+
+- [ ] Add a loading spinner or CSS animation alongside the "Submitting…" text for stronger visual feedback — `app/components/meals/meals-form-submit.js:10-12`
+- [ ] Remove the commented-out `<button>` from the share page once it is no longer needed for reference — `app/meals/share/page.js:46`
+- [ ] Add `aria-busy={pending}` to the `<button>` for improved screen-reader accessibility — `app/components/meals/meals-form-submit.js:10`
+- [ ] Implement error handling using `useActionState` to display validation or server errors to the user — `app/meals/share/page.js`, `app/components/meals/meals-form-submit.js`
+- [ ] Consider disabling all form inputs (not just the button) while the submission is pending to prevent editing during processing — `app/meals/share/page.js:16-48`
+
+[↑ top — 124. Lesson 124 — *Managing the Form Submission Status with useFormStatus*](#-124-lesson-124--managing-the-form-submission-status-with-useformstatus)
+
 
 
 
