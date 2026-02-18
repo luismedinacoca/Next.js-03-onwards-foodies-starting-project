@@ -6966,12 +6966,6 @@ export default function ShareMealPage() {
 ![meals-form-submit in submitting state](../img/section03-lecture124-002.png)
 
 ### 🐞 124.3 Issues:
-
-- The `MealsFormSubmit` component does not provide any visual loading indicator beyond a text change (no spinner or animation).
-- The commented-out `<button>` in `app/meals/share/page.js:46` is dead code that may confuse future readers.
-- No accessibility attributes (e.g., `aria-busy`, `aria-disabled`) are applied to the button during the pending state.
-- The component does not handle or display errors from the Server Action — only the "pending" state is managed.
-
 | Issue | Status | Log/Error |
 |---|---|---|
 | No visual loading indicator | ℹ️ Low Priority | `app/components/meals/meals-form-submit.js:10-12` — The button only changes its text label to "Submitting…"; there is no spinner, animation, or other visual cue to reinforce that the action is in progress. |
@@ -6990,8 +6984,184 @@ export default function ShareMealPage() {
 [↑ top — 124. Lesson 124 — *Managing the Form Submission Status with useFormStatus*](#-124-lesson-124--managing-the-form-submission-status-with-useformstatus)
 
 
+<br>
+
+## 🔧 125. Lesson 125 — *Adding Server-Side Input Validation*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [125. Lesson 125 — *Adding Server-Side Input Validation*](#-125-lesson-125--adding-server-side-input-validation)
+- [125.1 Context](#-1251-context)
+- [125.2 Updating code according the context](#️-1252-updating-codetheory-according-the-context)
+  - [125.2.1 The problem — browser-only validation can be bypassed](#12521-the-problem--browser-only-validation-can-be-bypassed)
+  - [125.2.2 Adding server-side validation with `isInvalidText` in the Server Action](#12522-adding-server-side-validation-with-isinvalidtext-in-the-server-action)
+  - [125.2.3 Adding an error boundary to handle validation failures gracefully](#12523-adding-an-error-boundary-to-handle-validation-failures-gracefully)
+  - [125.2.4 Testing — bypassing browser validation to trigger the server guard](#12524-testing--bypassing-browser-validation-to-trigger-the-server-guard)
+- [125.3 Issues](#-1253-issues)
+- [125.4 Pending Fixes (TODO)](#-1254-pending-fixes-todo)
+
+### 🧠 125.1 Context:
+
+After implementing the meal-sharing form (Lessons 122–124), every input field carries the HTML `required` attribute, which means the browser prevents empty submissions. However, **client-side (browser) validation is never trustworthy on its own** — any user can open DevTools, remove the `required` attribute from every `<input>`, and submit the form with empty or malicious values. The Server Action would then call `saveMeal` with garbage data, potentially inserting incomplete or corrupt rows into the database.
+
+This lesson adds a **server-side validation guard** inside the `shareMeal` Server Action. A small helper function `isInvalidText` checks whether a string is falsy or blank after trimming. The guard validates all text fields, confirms the email contains an `@`, and verifies that the image `File` object exists and has a non-zero `size`. If any check fails, the action throws an `Error('Invalid input')`, which Next.js surfaces through the nearest **error boundary** — a `'use client'` `error.js` file placed in the same route segment.
+
+#### Key Concepts
+
+1. **Defense in depth** — Client-side validation (`required` attribute, `type="email"`, etc.) provides a good user experience but is **not a security measure**. Server-side validation is the authoritative check because the server is the only environment the developer fully controls.
+2. **`isInvalidText` helper** — A reusable predicate that returns `true` when a value is `null`, `undefined`, an empty string, or a string containing only whitespace. It consolidates the repeated `!value || value.trim() === ''` pattern into a single function.
+3. **Compound validation guard** — Multiple conditions are combined with `||` inside a single `if` block. If **any** condition is truthy, the entire submission is rejected. This covers text fields, email format (the `@` check), and the image file (existence + non-zero `size`).
+4. **Throwing inside a Server Action** — When a Server Action throws, Next.js does **not** crash the server. Instead, it serializes the error and sends it to the client, where the nearest `error.js` error boundary catches it and renders a fallback UI.
+5. **Route-segment error boundary (`error.js`)** — A special Next.js file convention. Placing `error.js` inside `app/meals/share/` creates a React Error Boundary scoped to that route segment. It must be a Client Component (`'use client'`), and it automatically wraps the page's content so thrown errors are caught and a user-friendly message is displayed.
+
+#### Advantages
+
+- **Security** — Even if a malicious user disables browser validation, the server rejects invalid data before it reaches `saveMeal` or the database.
+- **Data integrity** — Guarantees that every inserted meal row has non-empty `title`, `summary`, `instructions`, `creator`, a valid-ish `creator_email`, and a real image file.
+- **Reusable helper** — `isInvalidText` is a pure function that can be reused across other Server Actions or validation layers.
+- **Graceful error handling** — The `error.js` boundary catches the thrown error and shows a friendly message instead of an unhandled exception or a blank page.
+- **No external dependencies** — The validation logic uses only plain JavaScript; no validation library (Zod, Yup, etc.) is needed for this scope.
+
+#### Disadvantages / Gotchas
+
+- **Generic error message** — `throw new Error('Invalid input')` does not tell the user **which** field failed. The error boundary renders a generic "An error occurred!" message, making it hard for the user to correct the problem.
+- **No field-level feedback** — Unlike a client-side validation library, this approach does not highlight the specific invalid input or display per-field error messages.
+- **`@` check is minimal** — `!meal.creator_email.includes('@')` is a very loose email validation. Strings like `"@@"` or `"@"` would pass. A regex or a dedicated validator would be more robust.
+- **Image validation is shallow** — Checking `!meal.image || meal.image.size === 0` confirms a file was attached but does not verify its MIME type, maximum size, or whether it is actually an image.
+- **Error boundary replaces the form** — When the error boundary renders, the user loses their form input. They must navigate back and re-enter all data from scratch, which is a poor user experience.
+- **Typo in error boundary** — The `error.js` file contains `"An error occured!"` — a misspelling of "occurred."
+
+#### When to Consider Alternatives
+
+- For **per-field error messages** returned from the server, use `useActionState` (React 19) to return a state object with field-level errors instead of throwing.
+- For **schema-based validation**, consider libraries like **Zod** or **Yup** that provide declarative schemas, automatic type coercion, and detailed error objects — especially if validation rules grow complex.
+- For **email validation beyond the `@` check**, use a well-tested regex pattern or a library like `validator.js` to handle edge cases.
+- For **image validation**, inspect the file's magic bytes with a library like `file-type` and enforce size limits before writing to disk.
+- If **preserving form state on error** is important, return the error as data (via `useActionState`) rather than throwing, so the form remains mounted and the user can correct the mistake without re-entering everything.
+
+### ⚙️ 125.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section addresses the critical gap between **browser-side HTML validation** (which can be trivially bypassed) and **server-side validation** (which cannot).
+- **125.2.1** demonstrates the vulnerability: removing `required` attributes via DevTools allows empty form submissions to reach the Server Action unchecked.
+- **125.2.2** adds a `isInvalidText` helper and a compound `if` guard inside `shareMeal` that validates all fields and throws on invalid input.
+- **125.2.3** creates an `error.js` error boundary in `app/meals/share/` to catch the thrown error and display a user-friendly fallback.
+- **125.2.4** tests the full flow by removing browser validation in DevTools and confirming the server-side guard rejects the submission and the error boundary renders.
+
+#### 125.2.1 The problem — browser-only validation can be bypassed
+
+**Subsection Summary**
+- Explains that the share-meal form currently relies solely on the HTML `required` attribute in `app/meals/share/page.js` for input validation.
+- There is **no server-side validation** in `lib/actions.js` — the `shareMeal` function passes `formData` values directly to `saveMeal` without any checks.
+- A user can open the browser DevTools, select each `<input>` element, remove the `required` attribute, and submit the form with empty or invalid values.
+- The screenshot (`section03-lecture125-001.png`) shows this exact scenario: the user manipulating the DOM to bypass client-side validation.
+
+![user manipulation in order to submit invalid values](../img/section03-lecture125-001.png)
+
+#### 125.2.2 Adding server-side validation with `isInvalidText` in the Server Action
+
+**Subsection Summary**
+- Defines an `isInvalidText` helper function (annotation ✅ (1)) that returns `true` if the input is falsy or a whitespace-only string. This consolidates the repeated null/empty check into a single reusable predicate.
+- Adds a compound `if` guard (annotation ✅ (2)) inside `shareMeal` that validates every field before calling `saveMeal`:
+  - All text fields (`title`, `summary`, `instructions`, `creator`, `creator_email`) are checked via `isInvalidText`.
+  - The email must contain an `@` character (annotation ✅ (3)).
+  - The image must exist and have a non-zero `size` (annotation ✅ (4)).
+- If any condition fails, the action `throw new Error('Invalid input')` (annotation ✅ (5)), which stops execution and prevents the invalid data from reaching the database.
+- A commented-out line (`//if(!meal.title || meal.title.trim() === ''){}`) shows the initial inline approach before it was refactored into the `isInvalidText` helper.
+
+```jsx
+/* lib/actions.js */
+'use server';
+import { saveMeal } from '@/lib/meals';
+import { redirect } from 'next/navigation';
+
+const isInvalidText = (text) => {                                               // 👈🏽 ✅ (1)
+  return !text || text.trim() === '';
+}
+
+export async function shareMeal(formData){
+  const meal = {
+    title: formData.get('title'),
+    summary: formData.get('summary'),
+    instructions: formData.get('instructions'),
+    image: formData.get('image'),
+    creator: formData.get('name'),
+    creator_email: formData.get('email'),
+  };
+
+  //if(!meal.title || meal.title.trim() === ''){}
+  if(                                                                           // 👈🏽 ✅ (2)
+    isInvalidText(meal.title) ||
+    isInvalidText(meal.summary) ||
+    isInvalidText(meal.instructions) ||
+    isInvalidText(meal.creator) ||
+    isInvalidText(meal.creator_email) ||
+    !meal.creator_email.includes('@') ||                                        // 👈🏽 ✅ (3)
+    !meal.image ||                                                              // 👈🏽 ✅ (4)
+    meal.image.size === 0                                                       // 👈🏽 ✅ (4)
+  ){
+    throw new Error('Invalid input');                                            // 👈🏽 ✅ (5)
+  }
+
+  await saveMeal(meal);
+  redirect('/meals');
+}
+```
+
+#### 125.2.3 Adding an error boundary to handle validation failures gracefully
+
+**Subsection Summary**
+- Creates a new file `app/meals/share/error.js` (annotation ✅ (1)) — a **route-segment error boundary** that Next.js uses to catch errors thrown within this route.
+- Marks the component with `"use client"` (annotation ✅ (2)) because Next.js error boundaries must be Client Components.
+- Renders a simple fallback UI with an error heading and a descriptive paragraph asking the user to try again.
+- When the `shareMeal` Server Action throws `'Invalid input'`, Next.js catches the error and renders this `Error` component instead of crashing the page.
+- Contains a typo: `"An error occured!"` should be `"An error occurred!"`.
+
+```jsx
+/* app/meals/share/error.js */
+"use client"                                                                    // 👈🏽 ✅ (2)
+export default function Error() {                                               // 👈🏽 ✅ (1)
+  return <main className="error">
+    <h1>An error occured!</h1>
+    <p>Failed to create meal, please try again later.</p>
+  </main>
+}
+```
+
+#### 125.2.4 Testing — bypassing browser validation to trigger the server guard
+
+**Subsection Summary**
+- Demonstrates the end-to-end test: open DevTools on the share-meal page, select each `<input>` and `<textarea>`, remove the `required` attribute, then submit the form with empty fields.
+  * Delete all `required` in HTML from `app/meals/share/page.js` in the browser to skip validation
+- Because the browser no longer blocks the submission, the `shareMeal` Server Action executes, the `isInvalidText` guard catches the empty values, and `throw new Error('Invalid input')` fires.
+- Next.js catches the error and renders the `error.js` error boundary, confirming the server-side validation works as expected.
+- The screenshot (`section03-lecture125-002.png`) shows the error boundary rendered in the browser after the invalid submission.
 
 
+![error boundary rendered after submitting invalid data](../img/section03-lecture125-002.png)
+
+### 🐞 125.3 Issues:
+| Issue | Status | Log/Error |
+|---|---|---|
+| Generic error message — no field-level feedback | ⚠️ Identified | `lib/actions.js:30` — `throw new Error('Invalid input')` does not specify which field failed. The user sees only "An error occurred!" with no guidance on what to fix. |
+| Minimal email validation | ⚠️ Identified | `lib/actions.js:26` — `!meal.creator_email.includes('@')` accepts strings like `"@@"` or `"@"` as valid. A stricter regex or validation library is recommended. |
+| Shallow image validation | ⚠️ Identified | `lib/actions.js:27-28` — Only checks that the image exists and has `size > 0`. Does not verify MIME type, file extension, or enforce a maximum file size. |
+| Typo in error boundary | ℹ️ Low Priority | `app/meals/share/error.js:4` — `"An error occured!"` should be `"An error occurred!"`. |
+| Form state lost on error | ℹ️ Informational | `app/meals/share/error.js:2-7` — When the error boundary renders, the form is unmounted and the user loses all entered data. Returning errors via `useActionState` would preserve the form state. |
+| Commented-out dead code | ℹ️ Low Priority | `lib/actions.js:19` — `//if(!meal.title || meal.title.trim() === ''){}` is left for reference but is dead code. |
+
+### 🧱 125.4 Pending Fixes (TODO)
+
+- [ ] Replace `throw new Error('Invalid input')` with a `useActionState`-based approach that returns per-field error messages to the form without unmounting it — `lib/actions.js:30`
+- [ ] Strengthen the email validation with a proper regex pattern or a library like `validator.js` — `lib/actions.js:26`
+- [ ] Add MIME-type and file-size checks for the uploaded image (e.g., reject files > 5 MB or non-image types) — `lib/actions.js:27-28`
+- [ ] Fix the typo `"occured"` → `"occurred"` in the error boundary heading — `app/meals/share/error.js:4`
+- [ ] Remove the commented-out inline validation once it is no longer needed for reference — `lib/actions.js:19`
+- [ ] Consider adding an `Error` component prop for `error` and a `reset` callback to allow the user to retry without navigating away — `app/meals/share/error.js:2`
+- [ ] Add a "Back to form" link or button in the error boundary so the user can return to the share page easily — `app/meals/share/error.js:5`
+
+[↑ top — 125. Lesson 125 — *Adding Server-Side Input Validation*](#-125-lesson-125--adding-server-side-input-validation)
 
 
 
