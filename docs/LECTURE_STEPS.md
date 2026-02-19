@@ -7163,6 +7163,357 @@ export default function Error() {                                               
 
 [↑ top — 125. Lesson 125 — *Adding Server-Side Input Validation*](#-125-lesson-125--adding-server-side-input-validation)
 
+<br>
+
+## 🔧 127. Lesson 127 — *Working with Server Action Responses & useFormState (useActionState)*
+
+[🧳 Section 03: NextJS Essential (App Router)](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [127. Lesson 127 — *Working with Server Action Responses & useFormState (useActionState)*](#-127-lesson-127--working-with-server-action-responses--useformstate-useactionstate)
+- [127.1 Context](#-1271-context)
+- [127.2 Updating code/theory according the context](#-1272-updating-codetheory-according-the-context)
+  - [127.2.1 Returning a response object from the Server Action instead of throwing](#12721-returning-a-response-object-from-the-server-action-instead-of-throwing)
+  - [127.2.2 Integrating useActionState and formAction in ShareMealPage](#12722-integrating-useactionstate-and-formaction-in-sharemealpage)
+  - [127.2.3 Updating shareMeal signature to accept prevState for useActionState](#12723-updating-sharemeal-signature-to-accept-prevstate-for-useactionstate)
+  - [127.2.4 Adding 'use client' directive — ShareMealPage as Client Component](#12724-adding-use-client-directive--sharemealpage-as-client-component)
+- [127.3 Issues](#-1273-issues)
+- [127.4 Pending Fixes (TODO)](#-1274-pending-fixes-todo)
+
+### 🧠 127.1 Context:
+
+In Lesson 125, when server-side validation failed, the `shareMeal` Server Action threw an error. Next.js caught it and rendered the `error.js` boundary — replacing the entire form and losing user input. **Lesson 127** introduces a better pattern: **returning a response object** from the Server Action and using **`useActionState`** (formerly `useFormState`) to surface validation feedback directly in the form, keeping it mounted and preserving user-entered data.
+
+`useActionState` is a React 19 hook that wires a Server Action to a form and exposes the action’s return value as state. Each time the form is submitted, the Server Action runs, and its return value becomes the new `state`. The form can read `state.message` and show inline validation messages without unmounting.
+
+#### Key Concepts
+
+1. **Server Actions can return serializable data** — Unlike `redirect()` or `throw`, a Server Action can return `strings`, `numbers`, arrays, or objects. These values are serialized and sent back to the client. In this lesson, we return `{ message: '😩 Invalid Input.' }` when validation fails instead of throwing.
+
+2. **`useActionState` (formerly `useFormState`)** — React 19 renamed `useFormState` to `useActionState`. It accepts two arguments: the Server Action function and an initial state value. It returns `[state, formAction]`: the current state (the last return value from the action) and a wrapped action to pass to `<form action={formAction}>`.
+
+3. **`prevState` as first parameter** — When a Server Action is used with `useActionState`, React injects the previous state as the first argument. The action signature changes from `shareMeal(formData)` to `shareMeal(prevState, formData)`. This enables progressive enhancement and state accumulation if needed.
+
+4. **`useActionState` is a client hook** — Hooks like `useActionState` run only in Client Components. Therefore, `ShareMealPage` must include `'use client'` at the top. Without it, Next.js reports an error (see `section03-lecture127-001.png`).
+
+#### Advantages
+
+- **Inline feedback** — Validation errors appear in the form (e.g., `state.message`) instead of replacing the page with an error boundary.
+- **Form state preserved** — The form stays mounted; the user can correct fields without losing what they typed.
+- **No external libraries** — Uses the built-in React 19 `useActionState` hook and Next.js Server Actions.
+- **Predictable flow** — Return values from the Server Action map directly to form state, making the flow easy to reason about.
+- **Progressive enhancement** — With `prevState`, the action can build on prior submissions or accumulate feedback over multiple submits.
+
+#### Disadvantages / Gotchas
+
+- **Page becomes a Client Component** — The entire `ShareMealPage` must be `'use client'` because of `useActionState`, so it no longer benefits from Server Component optimizations like zero client JS for the initial render.
+- **`prevState` is required when used with `useActionState`** — Omitting `prevState` in the action signature causes `formData` to be misread as the previous state, breaking validation.
+- **Generic message only** — The current implementation returns a single `message` string. Per-field errors (e.g., `{ errors: { title: 'Required' } }`) require extending the return shape.
+- **Naming change** — `useFormState` was deprecated in favour of `useActionState`; code using the old name should be updated.
+- **Serialization limits** — Returned values must be JSON-serializable. Functions, `Date` objects, or non-plain objects may not survive the round-trip.
+
+#### When to Consider Alternatives
+
+- For **field-level validation feedback**, extend the return object with an `errors` map keyed by field name instead of a single `message`.
+- For **schema-based validation with typed errors**, use **Zod** or **Yup** and return structured error objects from the action.
+- If **avoiding Client Components** is a priority, consider using a separate small Client Component that wraps only the form and uses `useActionState`, keeping the page as a Server Component.
+- For **optimistic UI or complex state**, combine `useActionState` with `useOptimistic` or other React 19 APIs.
+- If **form state persistence across navigation** is needed, pair with `useTransition` or URL/search params.
+
+### ⚙️ 127.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section transitions from **throwing errors** (Lesson 125) to **returning response objects** from the Server Action, enabling inline validation feedback without unmounting the form.
+- **127.2.1** shows how `shareMeal` returns `{ message: '😩 Invalid Input.' }` instead of `throw new Error(...)` when validation fails.
+- **127.2.2** wires `useActionState(shareMeal, { message: null })` into `ShareMealPage`, binds `formAction` to the form, and renders `state.message` inline.
+- **127.2.3** updates the Server Action signature to `shareMeal(prevState, formData)` so it works correctly with `useActionState`.
+- **127.2.4** adds the `'use client'` directive (required because `useActionState` is a client hook) and documents the testing steps with screenshots showing the validation error display.
+
+* `useFormState` => `useActionState`
+
+#### 127.2.1 Returning a response object from the Server Action instead of throwing
+
+**Subsection Summary**
+- Replaces `throw new Error('Invalid input')` with `return { message: '😩 Invalid Input.' }` inside the validation guard in `lib/actions.js`.
+- Demonstrates that Server Actions can return serializable objects; Next.js sends this object back to the client instead of triggering the error boundary.
+- The `shareMeal` function still has the single-argument signature `shareMeal(formData)` — the `prevState` parameter is added in **127.2.3** when integrating with `useActionState`.
+- Key concepts: no limit on redirecting or throwing in Server Actions; returning response objects (strings, numbers, arrays, objects) is a valid pattern for validation feedback.
+
+```jsx
+/* lib/actions.js */
+'use server';
+import { saveMeal } from '@/lib/meals';
+import { redirect } from 'next/navigation';
+
+const isInvalidText = (text) => {
+  return !text || text.trim() === '';
+}
+
+export async function shareMeal(formData){
+  const meal = {
+    title: formData.get('title'),
+    summary: formData.get('summary'),
+    instructions: formData.get('instructions'),
+    image: formData.get('image'),
+    creator: formData.get('name'),
+    creator_email: formData.get('email'),
+  };
+
+  //if(!meal.title || meal.title.trim() === ''){}
+  if(
+    isInvalidText(meal.title) ||
+    isInvalidText(meal.summary) ||
+    isInvalidText(meal.instructions) ||
+    isInvalidText(meal.creator) ||
+    isInvalidText(meal.creator_email) ||
+    !meal.creator_email.includes('@') ||
+    !meal.image ||
+    meal.image.size === 0
+  ){
+    //throw new Error('Invalid input');
+    return {
+      message: '😩 Invalid Input.'                        // 👈🏽 ✅ (1)
+    }
+  }
+
+  await saveMeal(meal);
+  redirect('/meals');
+}
+```
+
+* Validation error in a more elegant way.
+* In `Server Action`, no limit on redirecting or throwing errors.
+* It's possible to return `response objects`: `strings`, `numbers`, `arrays`, `object`.
+
+
+#### 127.2.2 Integrating useActionState and formAction in ShareMealPage
+
+**Subsection Summary**
+- Imports `useActionState` from `'react'` (annotation ✅ (1)) — React 19 hook (replaces legacy `useFormState`).
+- Calls `useActionState(shareMeal, { message: null })` to obtain `[state, formAction]` (annotation ✅ (2)); initial state has `message: null`.
+- Passes `formAction` to the form's `action` prop (annotation ✅ (3)) so submits invoke the Server Action and update state.
+- Renders `{state.message && <p>{state.message}</p>}` (annotation ✅ (4)) to display the validation message inline when the action returns `{ message: '😩 Invalid Input.' }`.
+- Note: At this stage the page lacks `'use client'` — this will trigger an error until fixed in **127.2.4**, because `useActionState` is a client-only hook.
+
+```jsx
+/* app/meals/share/page.js */
+import { useActionState } from 'react';                                                 //  👈🏽 ✅ (1)
+import { shareMeal } from '@/lib/actions';
+import ImagePicker from '../../components/meals/image-picker';
+import classes from './page.module.css';
+import MealsFormSubmit from '@/app/components/meals/meals-form-submit';
+
+export default function ShareMealPage() {
+  const [state, formAction] =  useActionState(shareMeal, { message: null });            // 👈🏽 ✅ (2)
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={formAction}>                             {/* 👈🏽 ✅ (3) */}
+            <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          {state.message && <p>{state.message}</p>}                                       {/* 👈🏽 ✅ (4) */}
+          <p className={classes.actions}>
+            {/* <button type="submit">Share Meal</button> */}
+            <MealsFormSubmit />
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+#### 127.2.3 Updating shareMeal signature to accept prevState for useActionState
+
+**Subsection Summary**
+- Changes the Server Action signature from `shareMeal(formData)` to `shareMeal(prevState, formData)` (annotation ✅ (1)).
+- When used with `useActionState`, React passes the previous state as the first argument and `FormData` as the second. Without this change, `formData` would be mistaken for `prevState`, breaking validation.
+- The validation logic and return value `{ message: '😩 Invalid Input.' }` remain unchanged; only the function signature is updated for compatibility with `useActionState`.
+- In this implementation `prevState` is not used for validation; it is required for the hook's contract.
+
+```jsx
+/* lib/actions.js */
+'use server';
+import { saveMeal } from '@/lib/meals';
+import { redirect } from 'next/navigation';
+
+const isInvalidText = (text) => {
+  return !text || text.trim() === '';
+}
+
+export async function shareMeal(prevState, formData){           // 👈🏽 ✅ (1)
+  const meal = {
+    title: formData.get('title'),
+    summary: formData.get('summary'),
+    instructions: formData.get('instructions'),
+    image: formData.get('image'),
+    creator: formData.get('name'),
+    creator_email: formData.get('email'),
+  };
+
+  //if(!meal.title || meal.title.trim() === ''){}
+  if(
+    isInvalidText(meal.title) ||
+    isInvalidText(meal.summary) ||
+    isInvalidText(meal.instructions) ||
+    isInvalidText(meal.creator) ||
+    isInvalidText(meal.creator_email) ||
+    !meal.creator_email.includes('@') ||
+    !meal.image ||
+    meal.image.size === 0
+  ){
+    //throw new Error('Invalid input');
+    return {
+      message: '😩 Invalid Input.'
+    }
+  }
+
+  await saveMeal(meal);
+  redirect('/meals');
+}
+```
+
+![ShareMealPage must be client component - due to useActionState](../img/section03-lecture127-001.png)
+
+
+#### 127.2.4 Adding 'use client' directive — ShareMealPage as Client Component
+
+**Subsection Summary**
+- Adds `'use client'` at the top of `app/meals/share/page.js` (annotation ✅ (1)) — `useActionState` is a React hook and can only run in Client Components.
+- Without this directive, Next.js reports that hooks cannot be used in Server Components; the screenshot `section03-lecture127-001.png` illustrates this error.
+- The testing section describes how to verify the flow: fill in name, title, summary, instructions, upload an image, then remove the `required` attribute from the email input via DevTools to trigger server-side validation.
+- The screenshot `section03-lecture127-002.png` shows the inline validation message ("😩 Invalid Input.") displayed in the form when an invalid email is submitted.
+
+```jsx
+/* app/meals/share/page.js */
+'use client';                                                                           //  👈🏽 ✅ (1)
+import { useActionState } from 'react';                                                 
+import { shareMeal } from '@/lib/actions';
+import ImagePicker from '../../components/meals/image-picker';
+import classes from './page.module.css';
+import MealsFormSubmit from '@/app/components/meals/meals-form-submit';
+
+export default function ShareMealPage() {
+  const [state, formAction] =  useActionState(shareMeal, { message: null });            
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Share your <span className={classes.highlight}>favorite meal</span>
+        </h1>
+        <p>Or any other meal you feel needs sharing!</p>
+      </header>
+      <main className={classes.main}>
+        <form className={classes.form} action={formAction}>                             
+            <div className={classes.row}>
+            <p>
+              <label htmlFor="name">Your name</label>
+              <input type="text" id="name" name="name" required />
+            </p>
+            <p>
+              <label htmlFor="email">Your email</label>
+              <input type="email" id="email" name="email" required />
+            </p>
+          </div>
+          <p>
+            <label htmlFor="title">Title</label>
+            <input type="text" id="title" name="title" required />
+          </p>
+          <p>
+            <label htmlFor="summary">Short Summary</label>
+            <input type="text" id="summary" name="summary" required />
+          </p>
+          <p>
+            <label htmlFor="instructions">Instructions</label>
+            <textarea
+              id="instructions"
+              name="instructions"
+              rows="10"
+              required
+            ></textarea>
+          </p>
+          <ImagePicker label="Your image" name="image" />
+          {state.message && <p>{state.message}</p>}                                       
+          <p className={classes.actions}>
+            {/* <button type="submit">Share Meal</button> */}
+            <MealsFormSubmit />
+          </p>
+        </form>
+      </main>
+    </>
+  );
+}
+```
+
+Testing:
+
+- populate name, title, summary and instructions inputs.
+- upload an image.
+- delete `required` property in `email` using `devtools`.
+
+![due to invalid email input ](../img/section03-lecture127-002.png)
+
+### 🐞 127.3 Issues:
+
+- **Single generic message** — The Server Action returns one `message` string for all validation failures. Users do not know which field caused the error.
+- **Entire page is Client Component** — Adding `'use client'` to `ShareMealPage` means the whole page hydrates on the client, losing Server Component benefits for that route.
+- **Minimal email validation unchanged** — Still using `!meal.creator_email.includes('@')`, which accepts invalid values like `"@"` or `"@@"`.
+- **Shallow image validation** — No checks for MIME type, file size limits, or image dimensions.
+- **`prevState` unused** — The action receives `prevState` but does not use it; it is required only for the `useActionState` contract.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Generic validation message — no field-level feedback | ⚠️ Identified | `lib/actions.js:30-32` — Returns `{ message: '😩 Invalid Input.' }` for any validation failure. User cannot tell which field to fix. |
+| ShareMealPage fully client-side | ℹ️ Informational | `app/meals/share/page.js:1` — `'use client'` makes the entire page a Client Component; could wrap only the form in a smaller Client Component. |
+| Minimal email validation | ⚠️ Identified | `lib/actions.js:26` — `!meal.creator_email.includes('@')` accepts edge cases like `"@"` or `"a@b"` without domain validation. |
+| Shallow image validation | ⚠️ Identified | `lib/actions.js:27-28` — Only checks existence and non-zero `size`; no MIME type, max size, or dimension checks. |
+| Unused `prevState` parameter | ℹ️ Low Priority | `lib/actions.js:9` — `prevState` is required by `useActionState` but not used in validation logic. |
+
+### 🧱 127.4 Pending Fixes (TODO)
+
+- [ ] Extend the return object with per-field errors, e.g. `{ errors: { email: 'Invalid format', title: 'Required' } }`, and render them next to each input — `lib/actions.js:30-32`, `app/meals/share/page.js:48`
+- [ ] Consider splitting into a small Client Component that wraps only the form and uses `useActionState`, keeping the page as a Server Component — `app/meals/share/page.js:1`
+- [ ] Strengthen email validation with a regex or library like `validator.js` — `lib/actions.js:26`
+- [ ] Add MIME-type and file-size validation for uploaded images (e.g., reject non-image types and files > 5 MB) — `lib/actions.js:27-28`
+- [ ] Add `aria-live="polite"` (or `aria-live="assertive"`) to the validation message container for better screen reader announcements — `app/meals/share/page.js:48`
+
+[↑ top — 127. Lesson 127 — *Working with Server Action Responses & useFormState (useActionState)*](#-127-lesson-127--working-with-server-action-responses--useformstate-useactionstate)
+
+
+
+
 
 
 
@@ -7206,6 +7557,12 @@ export default function Error() {                                               
 ```
 
 #### XXX.2.4
+```jsx
+/*  */
+
+```
+
+#### XXX.2.5
 ```jsx
 /*  */
 
