@@ -7281,9 +7281,9 @@ export async function shareMeal(formData){
 }
 ```
 
-* Validation error in a more elegant way.
+* Validation error in elegant way.
 * In `Server Action`, no limit on redirecting or throwing errors.
-* It's possible to return `response objects`: `strings`, `numbers`, `arrays`, `object`.
+* It's possible to return `response objects`: `strings`, `numbers`, nested `arrays`, nested `object`.
 
 
 #### 127.2.2 Integrating useActionState and formAction in ShareMealPage
@@ -7354,6 +7354,9 @@ export default function ShareMealPage() {
   );
 }
 ```
+
+* `shareMeal` is a `Server Action` (a ***function*** that runs on the server).
+* The browser collects all the form fields → creates a ***`FormData` object***.
 
 #### 127.2.3 Updating shareMeal signature to accept prevState for useActionState
 
@@ -7513,8 +7516,113 @@ Testing:
 
 
 
+<br>
+
+## 🔧 128. Lesson 128 — *Building For Production & Understanding NextJS Caching*
+
+[🧳 Section 03: NextJS Essential (App Router)](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [128. Lesson 128 — *Building For Production & Understanding NextJS Caching*](#-128-lesson-128--building-for-production--understanding-nextjs-caching)
+- [128.1 Context](#1281-context)
+- [128.2 Updating code/theory according the context](#1282-updating-codetheory-according-the-context)
+  - [128.2.1 Production build steps and observing static caching](#12821-production-build-steps-and-observing-static-caching)
+- [128.3 Issues](#1283-issues)
+- [128.4 Pending Fixes (TODO)](#1284-pending-fixes-todo)
+
+### 🧠 128.1 Context:
+
+This lesson introduces **building for production** and **Next.js caching behavior**. In production mode (`npm run build` + `npm start`), Next.js optimizes pages by pre-rendering and caching them, which dramatically improves performance but can cause ***`stale data`*** to appear after mutations (e.g., adding a meal via the Share form).
+
+**Key Concepts:**
+1. **Production build** (`next build`): Compiles the app, analyzes routes, and pre-renders static pages. Output shows which routes are Static (`o`) vs Dynamic (`f`).
+2. **Static pre-rendering**: Pages without dynamic segments (e.g., `cookies`, `headers`, `searchParams`) are prerendered at build time. The `/meals` page uses `getMeals()` and is rendered once during build.
+3. **Aggressive caching**: Next.js caches the result of data fetching and page rendering. In production, static pages serve the cached HTML/data until explicitly invalidated or until the server restarts.
+4. **Server restart effect**: Restarting `npm start` clears in-memory caches, forcing a fresh render and showing newly added data. This explains why a meal appears after restart but not immediately after sharing.
+
+**Advantages:**
+- Fast page loads from cached content.
+- Reduced server load for static content.
+- Predictable, optimized build output for deployment.
+
+**Disadvantages / Gotchas:**
+- New data (e.g., shared meals) does not appear on static pages until the cache is invalidated.
+- Users may see outdated content after mutations until ***`revalidatePath`***, `revalidateTag`, or similar APIs are used.
+- Restarting the server is not a sustainable solution — it is only useful for understanding the problem.
+
+**When to Consider Alternatives:**
+- Use `revalidatePath` in Server Actions after mutations to refresh specific pages.
+- Use `revalidateTag` when data is shared across multiple pages.
+- Mark pages as dynamic (e.g., with `export const dynamic = 'force-dynamic'`) if they must never be cached — at the cost of performance.
+
+In this project, `shareMeal` in `lib/actions.js` saves a meal and redirects to `/meals`, but the `/meals` page was statically generated at build time. Without cache invalidation, the new meal remains invisible until the next full render (e.g., after a server restart).
+
+### ⚙️ 128.2 Updating code/theory according the context:
+
+#### **Summary**
+- Demonstrates the production build workflow (`npm run build` → `npm start`) and how to run the app locally in production mode.
+- Exposes the issue where newly shared meals do not appear on `/meals` because Next.js pre-generates and caches the meals page.
+- Uses terminal screenshots to show static vs dynamic route classification and the effect of restarting the server to observe fresh data.
+
+#### 128.2.1 Production build steps and observing static caching
+
+**Subsection Summary:**
+- Walks through the steps to build and run the app in production: `npm run build` and `npm start`.
+- Simulates user flow: opening localhost, completing the Share form, submitting a meal, and checking `/meals`.
+- Identifies the symptom: the new meal is not visible on the meals list.
+- Explains the root cause: Next.js aggressive caching and pre-generation of non-dynamic pages.
+- Documents that restarting the terminal/server makes the new meal appear, demonstrating that the data is saved correctly but served from a stale cache.
+- Images show the build output (static `/meals` route, dynamic `/meals/[mealSlug]`), the production server output, and the meal card (e.g., Papa a la Huancaina) after restart.
+
+Follow those steps:
+1. Run from terminal:
+    ```bash
+    npm run build
+    ```
+2. Then execute that command:
+    ```bash
+    npm start
+    ```
+3. Open [Production local host](http://localhost:3000)
+4. Go to [Share form](http://localhost:3000/meals/share) url.
+5. Complete the form
+6. Click on `Share Meal` button.
 
 
+Issue:
+
+* new share meal is not visible in the [Meals URL](http://localhost:3000/meals).
+
+Because
+
+* Nextjs performs some pretty agressive caching.
+* Pre-generate all non-dynamic pages.
+
+Before adding a new shared meal:
+![outcome from terminal](../img/section03-lecture128-001.png)
+
+After re-start the terminal:
+![outcome from terminal - after re-start](../img/section03-lecture128-002.png)
+![shared meal added after re-start terminal](../img/section03-lecture128-003.png)
+
+### 🐞 128.3 Issues:
+
+- **Stale meals list after sharing** — New meals added via the Share form do not appear on `/meals` because the page is statically cached at build time.
+- **No cache invalidation** — The `shareMeal` Server Action does not call `revalidatePath` or similar APIs, so the `/meals` cache is never refreshed after a mutation.
+- **Restart dependency** — The only way to see new meals in this lesson is to restart the production server, which is not viable for real deployments.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Stale meals list after sharing — new meals invisible | ⚠️ Identified | `app/meals/page.js` — Page is statically pre-rendered; `getMeals()` result is cached. No invalidation after `shareMeal`. |
+| Missing revalidatePath in shareMeal | ⚠️ Identified | `lib/actions.js:36-37` — After `saveMeal(meal)` and before `redirect('/meals')`, there is no call to `revalidatePath('/meals')` to invalidate the cached meals page. |
+| Workaround via server restart only | ℹ️ Informational | Restarting `npm start` clears caches and shows new data; not a production solution. |
+
+### 🧱 128.4 Pending Fixes (TODO)
+
+- [ ] Add `revalidatePath('/meals')` in `lib/actions.js` after `await saveMeal(meal)` and before `redirect('/meals')` to invalidate the meals page cache when a new meal is shared. Import from `next/cache`: `import { revalidatePath } from 'next/cache';` — `lib/actions.js:36`
+- [ ] Consider `revalidatePath('/meals/[mealSlug]', 'page')` or `revalidatePath('/meals', 'layout')` if the new meal detail page or layout also needs to reflect updated data — `lib/actions.js`
+
+[↑ top — 128. Lesson 128 — *Building For Production & Understanding NextJS Caching*](#-128-lesson-128--building-for-production--understanding-nextjs-caching)
 
 
 
