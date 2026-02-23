@@ -172,7 +172,12 @@ db.prepare(
 `,
 ).run();
 
-async function initData() {
+function initData() {
+  const existingCount = db.prepare('SELECT COUNT(*) as count FROM meals').get();
+  if (existingCount.count > 0) {
+    return;
+  }
+
   const stmt = db.prepare(`
       INSERT INTO meals VALUES (
          null,

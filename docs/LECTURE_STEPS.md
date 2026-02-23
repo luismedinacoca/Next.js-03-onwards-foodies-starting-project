@@ -7625,6 +7625,194 @@ After re-start the terminal:
 [↑ top — 128. Lesson 128 — *Building For Production & Understanding NextJS Caching*](#-128-lesson-128--building-for-production--understanding-nextjs-caching)
 
 
+<br>
+
+## 🔧 129. Lesson 129 — *Triggering Cache Revalidations*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [129. Lesson 129 — *Triggering Cache Revalidations*](#-129-lesson-129--triggering-cache-revalidations)
+- [129.1 Context](#1291-context)
+- [129.2 Updating code according the context](#1292-updating-codetheory-according-the-context)
+  - [129.2.1 Adding revalidatePath to shareMeal Server Action](#12921-adding-revalidatepath-to-sharemeal-server-action)
+  - [129.2.2 Build and run production to verify](#12922-build-and-run-production-to-verify)
+  - [129.2.3 revalidatePath variants comparison](#12923-revalidatepath-variants-comparison)
+- [129.3 Issues](#1293-issues)
+- [129.4 Pending Fixes (TODO)](#1294-pending-fixes-todo)
+
+### 🧠 129.1 Context:
+
+Cache revalidation is the mechanism in Next.js (App Router) that allows you to **invalidate cached routes and data** after a mutation (e.g., adding a meal) so that the next request receives fresh content instead of stale, pre-rendered output.
+
+**Key Concepts:**
+
+1. **`revalidatePath(path)`** — From `next/cache`, invalidates the Router Cache and Data Cache for a given path. The page (or layout) is regenerated on the next request.
+2. **`path`** — A string like `'/meals'` or `'/meals/some-slug'`. It can be an exact route or a dynamic segment.
+3. **Second argument (`type`)** — Optional: `'page'` (default) invalidates only the matching page; `'layout'` invalidates the layout and all nested pages underneath.
+4. **On-Demand Revalidation** — Unlike `revalidate` in `fetch` options or `revalidate` export, `revalidatePath` is called imperatively from Server Actions after mutations, giving precise control over *when* the cache is invalidated.
+
+**When and why it's used:**
+
+- After **Server Actions** that create, update, or delete data (e.g., `shareMeal`).
+- When users expect to see updated content immediately after their action (e.g., newly shared meal appearing on `/meals`).
+- To avoid the need to restart the production server to clear stale data.
+
+**In this project:**
+
+- Lesson 128 showed that shared meals did not appear on `/meals` until the server was restarted because the page was statically cached.
+- Lesson 129 fixes this by calling `revalidatePath('/meals')` inside the `shareMeal` Server Action in `lib/actions.js`, right after `saveMeal(meal)` and before `redirect('/meals')`.
+
+**Advantages:**
+
+- Simple API: one function call to invalidate a path.
+- Works with Server Actions; no client-side revalidation logic needed.
+- Granular control: you choose which paths to invalidate.
+- No server restart required; production-ready.
+
+**Disadvantages / Gotchas:**
+
+- Only invalidates on the next *request* to that path; the current redirect may still hit cached data until the invalidation takes effect (depends on timing).
+- Must be called from a Server Action, Route Handler, or server context; it is not available on the client.
+- Overuse of `revalidatePath` with `'layout'` can cause many pages to regenerate, impacting performance.
+
+**When to consider alternatives:**
+
+- Use **`revalidateTag`** when you want to invalidate multiple paths that share a tag (e.g., `fetch(..., { next: { tags: ['meals'] } })` and `revalidateTag('meals')`).
+- Use **time-based revalidation** (`revalidate: 60`) when content changes periodically and you don't need immediate freshness.
+- Use **`router.refresh()`** on the client for immediate UI refresh after mutations if combined with client-side state.
+
+---
+
+### ⚙️ 129.2 Updating code/theory according the context:
+
+#### **Summary**
+
+- This section implements on-demand cache revalidation in the Foodies app.
+- It solves the problem of stale meals list after sharing (from Lesson 128) by calling `revalidatePath('/meals')` in the `shareMeal` Server Action.
+- Subsection 129.2.1 updates `lib/actions.js` with the `revalidatePath` import and call.
+- Subsection 129.2.2 verifies the fix by building and running production and uploading a new meal.
+- Subsection 129.2.3 compares the different `revalidatePath` variants (`page` vs `layout`) for choosing the right scope.
+
+#### 129.2.1 Adding revalidatePath to shareMeal Server Action
+
+**Subsection Summary**
+
+- Adds `revalidatePath` from `next/cache` to `lib/actions.js`.
+- Calls `revalidatePath('/meals')` after `await saveMeal(meal)` and before `redirect('/meals')`.
+- Ensures the meals list cache is invalidated when a new meal is shared, so the next request to `/meals` gets fresh data.
+- Shows commented alternatives for `'page'`, `'layout'`, and root-level revalidation.
+
+```jsx
+/* lib/actions.js */
+'use server';
+import { saveMeal } from '@/lib/meals';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';                                          // 👈🏽 ✅ (1)
+
+const isInvalidText = (text) => {
+  return !text || text.trim() === '';
+}
+
+export async function shareMeal(prevState, formData){
+  const meal = {
+    title: formData.get('title'),
+    summary: formData.get('summary'),
+    instructions: formData.get('instructions'),
+    image: formData.get('image'),
+    creator: formData.get('name'),
+    creator_email: formData.get('email'),
+  };
+
+  //if(!meal.title || meal.title.trim() === ''){}
+  if(
+    isInvalidText(meal.title) ||
+    isInvalidText(meal.summary) ||
+    isInvalidText(meal.instructions) ||
+    isInvalidText(meal.creator) ||
+    isInvalidText(meal.creator_email) ||
+    !meal.creator_email.includes('@') ||
+    !meal.image ||
+    meal.image.size === 0
+  ){
+    //throw new Error('Invalid input');
+    return {
+      message: '😩 Invalid Input.'
+    }
+  }
+
+  await saveMeal(meal);
+  //revalidatePath('/meals', 'page');           // only that page will be revalidated.
+  //revalidatePath('/meals', 'layout');         // all pages under /meals or nested revalidation.
+  //revalidatePath('/', 'layout');              // all pages under /
+  revalidatePath('/meals');                     // 👈🏽 ✅ (2) only that path will be revalidated.
+  redirect('/meals');
+}
+```
+
+#### 129.2.2 Build and run production to verify
+
+**Subsection Summary**
+
+- Describes the workflow to verify cache revalidation: `npm run build` then `npm start`.
+- The first image shows the terminal output after building and starting the production server.
+- The second image shows the result after uploading a new meal: the new meal appears on `/meals` without restarting the server.
+
+```bash
+npm run build
+npm start
+```
+
+![terminal output](../img/section03-lecture129-001.png)
+
+![after uploading a new meal](../img/section03-lecture129-002.png)
+
+#### 129.2.3 revalidatePath variants comparison
+
+**Subsection Summary**
+
+- Compares three `revalidatePath` usage patterns: default (`/meals`), explicit `'page'`, and `'layout'`.
+- Clarifies scope: default and `'page'` only affect the exact page; `'layout'` affects the layout and all child routes.
+- Explains when to use each variant, performance impact, and behavior on dynamic routes.
+- Helps choose the right option based on whether only the meals list, or also layout/sidebar data, must be refreshed.
+
+| Characteristic                              | `revalidatePath('/meals')`                          | `revalidatePath('/meals', 'page')`                  | `revalidatePath('/meals', 'layout')`                |
+|---------------------------------------------|------------------------------------------------------|------------------------------------------------------|------------------------------------------------------|
+| **Implicit / Default Type**                 | `'page'` (current behavior in Next.js ≥13/14)       | `'page'` (explicit)                                 | `'layout'` (explicit)                               |
+| **What it mainly invalidates**              | The page matching `/meals` (page.tsx)               | Only the page `/meals/page.tsx`                     | The layout `/meals/layout.tsx` + all children       |
+| **Affects sub-routes**                      | No (only the exact page `/meals`)                   | No (only the exact page `/meals`)                   | **Yes** — all pages and sub-layouts below (e.g. `/meals/123`, `/meals/favorites`, etc.) |
+| **Requires 2nd argument on dynamic routes** | Not applicable here (static route)                  | Required if route has `[slug]`                      | Required if route has `[slug]`                      |
+| **Example with dynamic route**              | `revalidatePath('/meals/abc')` → assumes `'page'`   | `revalidatePath('/meals/[id]', 'page')`             | `revalidatePath('/meals/[id]', 'layout')`           |
+| **Impact on Data Cache (fetch)**            | Invalidates cached data used in that page           | Invalidates cached data used in that page           | Invalidates cached data in the layout + all child pages |
+| **When it regenerates**                     | Next visit to `/meals`                              | Next visit to `/meals`                              | Next visit to **any page under `/meals`**           |
+| **Typical use case**                        | Update only the general meals list                  | Maximum precision: refresh only `/meals`            | Changes in navbar, sidebar, global counter, shared filters in `/meals/*` |
+| **Performance / Scope**                     | Low impact (only 1 page)                            | Low impact (only 1 page)                            | **High impact** — can refresh many pages            |
+| **Recommended for**                         | Simple cases, static routes without sub-pages       | When you want to be very specific (best practice)   | When the layout has shared dynamic data             |
+| **Behavior in older versions**              | Was the only style (no type) → `'page'` implicit    | Introduced for more clarity and dynamic routes      | Introduced to allow invalidating layouts without affecting only pages |
+| **Real example**                            | You added a meal → refresh the main list            | You only want to refresh `/meals` without touching sub-pages | You changed “Favorite Meals (5)” in the sidebar     |
+
+
+### 🐞 129.3 Issues:
+
+- **New meal detail page not revalidated** — When a meal is shared, only `revalidatePath('/meals')` is called; the new meal's detail page (e.g. `/meals/new-meal-slug`) is not explicitly invalidated. It may be regenerated on first visit depending on Next.js behavior.
+- **No revalidation for delete/update** — If future features add meal deletion or editing, corresponding `revalidatePath` calls would need to be added.
+- **Potential race on first redirect** — In theory, `redirect('/meals')` immediately after `revalidatePath` could still serve cached content in some edge cases; in practice this is rare for simple flows.
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| New meal detail page `/meals/[slug]` not explicitly revalidated | ℹ️ Low Priority | `lib/actions.js:41` — Only `revalidatePath('/meals')` is called; new meal detail route may need `revalidatePath('/meals/[slug]', 'page')` for explicit refresh if slug is known. |
+| No revalidation logic for future delete/update actions | ℹ️ Informational | `lib/actions.js` — Current code only handles sharing; delete or update Server Actions would need their own `revalidatePath` calls. |
+| Edge case: redirect may hit stale cache | ℹ️ Informational | Theoretical; `revalidatePath` + `redirect` usually works; document if observed in production. |
+
+### 🧱 129.4 Pending Fixes (TODO)
+
+- [ ] If the new meal detail page must be guaranteed fresh on first visit, add `revalidatePath(\`/meals/${meal.slug}\`)` after `saveMeal` (requires `saveMeal` to return the saved meal with slug) — `lib/actions.js`
+- [ ] When implementing meal delete/update Server Actions, add `revalidatePath('/meals')` and optionally `revalidatePath(\`/meals/${slug}\`)` after mutations — `lib/actions.js`
+- [ ] Consider explicit `revalidatePath('/meals', 'page')` instead of the default for clarity and future-proofing if Next.js default behavior changes — `lib/actions.js:41`
+
+[↑ top — 129. Lesson 129 — *Triggering Cache Revalidations*](#-129-lesson-129--triggering-cache-revalidations)
+
+
 
 
 
