@@ -7792,6 +7792,18 @@ npm start
 | **Real example**                            | You added a meal → refresh the main list            | You only want to refresh `/meals` without touching sub-pages | You changed “Favorite Meals (5)” in the sidebar     |
 
 
+#### 129.2.4 Database Issue:
+
+1. Stop server.
+
+2. Execute following commands:
+```bash
+rm meals.db
+node initdb.js
+npm run build
+npm start
+```
+
 ### 🐞 129.3 Issues:
 
 - **New meal detail page not revalidated** — When a meal is shared, only `revalidatePath('/meals')` is called; the new meal's detail page (e.g. `/meals/new-meal-slug`) is not explicitly invalidated. It may be regenerated on first visit depending on Next.js behavior.
@@ -7813,6 +7825,114 @@ npm start
 [↑ top — 129. Lesson 129 — *Triggering Cache Revalidations*](#-129-lesson-129--triggering-cache-revalidations)
 
 
+<br>
+
+## 🔧 130. Lesson 130 — *Don't Store Files Locally On The Filesystem*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [130. Lesson 130 — *Don't Store Files Locally On The Filesystem*](#-130-lesson-130--dont-store-files-locally-on-the-filesystem)
+- [130.1 Context](#1301-context)
+- [130.2 Updating code according the context](#1302-updating-codetheory-according-the-context)
+  - [130.2.1 Why Uploaded Images Are Missing in Production](#13021-why-uploaded-images-are-missing-in-production)
+- [130.3 Issues](#1303-issues)
+- [130.4 Pending Fixes (TODO)](#1304-pending-fixes-todo)
+
+### 🧠 130.1 Context:
+
+This lesson explains why **uploaded meal images disappear or fail to display in production** when stored in the local filesystem under `public/images/`. In development, files written there are served immediately; in production, the same approach breaks because Next.js treats the `public` folder as a **build-time snapshot**, and many deployment targets use **ephemeral or read-only filesystems**.
+
+**Key Concepts:**
+
+1. **`public/` folder** — Next.js serves static files from `public` at the base URL (`/`). For example, `public/images/meal.jpg` is available at `/images/meal.jpg`. Files must exist at the path when the request is made.
+2. **Build-time vs. runtime** — During `next build`, the contents of `public/` are included in the output. Files added dynamically *after* the build (e.g., via `fs.createWriteStream` in `saveMeal`) are not part of that snapshot.
+3. **Ephemeral filesystem** — On serverless platforms (Vercel, AWS Lambda, etc.), each invocation may run in an isolated environment. Files written to disk in one request are not guaranteed to be available in another.
+4. **Deployment immutability** — Containers and serverless runtimes often start from a read-only or immutable image. Writes to `public/images/` may land in a temporary writable layer that is not served or is wiped on the next deployment.
+
+**When and why it's used:**
+
+- The Foodies app uses `lib/meals.js` → `saveMeal()` to write uploaded images to `public/images/` via `fs.createWriteStream`. This works locally but fails in production.
+- Users notice the image is missing when they upload a new meal and view it after deployment, or when the app runs on Vercel, Docker, or similar platforms.
+
+**In this project:**
+
+- `lib/meals.js:40` writes to `public/images/${fileName}`. The database stores `/images/${fileName}` (e.g. `/images/pizza_20260223_143022.jpg`).
+- During development, the file exists on disk and is served. In production, the file either never persists or lives in an unserved location.
+
+**Advantages of local filesystem (dev only):**
+
+- Simple to implement; no third-party storage setup.
+- Fast reads and writes for local testing.
+- No network latency or storage costs during development.
+
+**Disadvantages / Gotchas:**
+
+- **Production breakage** — Uploaded images return 404 or are never persisted.
+- **Serverless incompatibility** — Vercel, Netlify, and similar platforms do not support persistent local writes.
+- **No horizontal scaling** — Multiple instances do not share the same filesystem; uploaded files on instance A are invisible to instance B.
+- **Deployment overwrites** — Redeploying replaces the runtime filesystem; previously uploaded images are lost.
+
+**When to consider alternatives:**
+
+- Use **object storage** (AWS S3, Cloudflare R2, Vercel Blob, etc.) for any user-uploaded files in production.
+- Store the returned URL (or path) in the database instead of a local path.
+- For small demos or read-only static assets, `public/` is fine; it is not suitable for runtime uploads.
+
+---
+
+### ⚙️ 130.2 Updating code/theory according the context:
+
+#### **Summary**
+
+- This section explains why images uploaded via the Share Meal form are missing in production.
+- It clarifies the difference between development (where `public/images/` works) and production (where it fails).
+- Subsection 130.2.1 describes the root cause: `public/images` is available during development but ignored or ephemeral during production, with links to the Next.js documentation.
+
+#### 130.2.1 Why Uploaded Images Are Missing in Production
+
+**Subsection Summary**
+
+- Describes the issue: images uploaded when sharing a new meal do not appear in production.
+- Explains that uploads go to `public/images/`, which works in development because files are written and served from the same filesystem.
+- In production, the `public/` folder is treated as a build-time asset; runtime writes are not guaranteed to be served or persisted.
+- References the Next.js `public` folder docs for static assets and file conventions.
+- Does not change any code; this is a conceptual/theoretical lesson about architecture and deployment.
+
+**Issue:**
+
+- Why is the image still missing when the user uploads a new meal?
+
+**Explanation:**
+
+- The image is missing because uploads are written to the `public/images` folder.
+- `public/images` is available during **development** — files are written and served from the same local filesystem.
+- During **production**, images are baked into the build output (e.g., `.next` or the deployment bundle). Runtime writes to `public/images` do not become part of the served static assets.
+- The `public/images` folder (and any dynamically added files) is effectively **ignored or ephemeral** during production on typical hosting platforms.
+
+**Documentation:**
+
+- [Previous version — Optimizing Static Assets](https://nextjs.org/docs/app/building-your-application/optimizing/static-assets)
+- [Current version — public Folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder)
+
+
+### 🐞 130.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Images written to `public/images/` not served in production | ⚠️ Identified | `lib/meals.js:40` — `fs.createWriteStream(\`public/images/${fileName}\`)` writes at runtime; production serves build-time `public` snapshot only. |
+| No object storage integration for production uploads | ⚠️ Identified | `lib/meals.js:31-64` — Entire flow assumes local filesystem; no S3/Vercel Blob/Cloudflare R2 integration. |
+| Database stores local path that 404s in production | ℹ️ Informational | `lib/meals.js:50` — `meal.image = \`/images/${fileName}\`` stores path; file may not exist at that URL in production. |
+| Ephemeral filesystem on serverless breaks uploads | ℹ️ Informational | Vercel, Netlify, etc. — Writes to `public/` or project root are not persisted across requests or deployments. |
+
+### 🧱 130.4 Pending Fixes (TODO)
+
+- [ ] Integrate object storage (e.g., Vercel Blob, AWS S3, Cloudflare R2) for meal image uploads — replace `fs.createWriteStream` in `lib/meals.js:40` with upload to external service and store returned URL in `meal.image`.
+- [ ] Add conditional logic: use local `public/images/` in development and object storage in production — `lib/meals.js:31-64`.
+- [ ] Update environment configuration (e.g., `.env`) with storage provider credentials and bucket/container name for production.
+- [ ] Ensure `public/images/` directory exists and add `.gitignore` for `public/images/*` if keeping local dev uploads (to avoid committing user uploads).
+
+[↑ top — 130. Lesson 130 — *Don't Store Files Locally On The Filesystem*](#-130-lesson-130--dont-store-files-locally-on-the-filesystem)
 
 
 
