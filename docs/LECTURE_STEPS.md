@@ -8376,6 +8376,193 @@ You find the finished, adjusted code attached to this lecture. Please note that 
 [↑ top — 131. Lesson 131 — *Bonus: Storing Uploaded Images In The Cloud (AWS S3)*](#-131-lesson-131--bonus-storing-uploaded-images-in-the-cloud-aws-s3)
 
 
+## 🔧 132. Lesson 132 — *Adding Static Metadata*
+
+[🧳 Section 03: NextJS Essential (App Router)](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [132. Lesson 132 — *Adding Static Metadata*](#-132-lesson-132--adding-static-metadata)
+- [132.1 Context](#1321-context)
+- [132.2 Updating code according the context](#1322-updating-codetheory-according-the-context)
+  - [132.2.1 Defining metadata in root layout](#13221-defining-metadata-in-root-layout)
+  - [132.2.2 Overriding metadata in a nested page](#13222-overriding-metadata-in-a-nested-page)
+  - [132.2.3 Verifying metadata in browser](#13223-verifying-metadata-in-browser)
+- [132.3 Issues](#1323-issues)
+- [132.4 Pending Fixes (TODO)](#1324-pending-fixes-todo)
+
+### 🧠 132.1 Context:
+
+Next.js App Router supports **static metadata** via the `metadata` export in layout and page files. This metadata controls how pages appear in search results, social shares, and browser tabs.
+
+**Key concepts:**
+1. **`metadata` export**: A plain object exported from `layout.js` or `page.js` that defines `title`, `description`, `openGraph`, `twitter`, and other SEO-related fields.
+2. **Layout inheritance**: Metadata defined in a layout is applied to all pages wrapped by that layout unless a child page or nested layout overrides it.
+3. **Overriding behavior**: Child pages and nested layouts can override parent metadata; the closest (most specific) metadata wins.
+4. **Static vs dynamic**: Static metadata is resolved at build time; for data-dependent metadata (e.g. per-meal titles), use `generateMetadata` instead (covered in later lessons).
+
+**Advantages:**
+- Simple to add; no extra configuration.
+- Improves SEO and social sharing (title, description, OG tags).
+- Inherits across layouts, reducing repetition.
+- Type-safe and validated by Next.js.
+
+**Disadvantages / gotchas:**
+- Cannot use async data; values must be known at build/render time.
+- `metadata` and `generateMetadata` cannot both be exported from the same file.
+- Common typo: exporting `export default metadata` instead of `export const metadata`.
+
+**When to consider alternatives:**
+- Use `generateMetadata` (async) when title/description depend on fetched data (e.g. meal name from DB).
+- Use dynamic `viewport` when you need runtime viewport changes.
+- For advanced SEO (JSON-LD, canonical URLs), combine with custom `<head>` or `generateMetadata`.
+
+**Project implementation:** Root layout (`app/layout.js`) defines app-wide metadata; the meals page (`app/meals/page.js`) overrides with page-specific `title` and `description` for the `/meals` route.
+
+---
+
+### ⚙️ 132.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section shows how to add static `metadata` in the root layout and override it in a nested page.
+- Defines app-wide defaults in `app/layout.js` and page-specific metadata in `app/meals/page.js`.
+- Explains inheritance and override rules between layouts and pages.
+- Uses a screenshot to confirm that metadata renders correctly in the browser (`<title>`, `<meta name="description">`).
+
+#### 132.2.1 Defining metadata in root layout
+
+**Subsection Summary**
+- Exports a static `metadata` object from `app/layout.js` with `title` and `description`.
+- Provides app-wide defaults for all routes that do not override metadata.
+- Uses the Next.js `metadata` API (see [The metadata object](https://nextjs.org/docs/app/api-reference/functions/generate-metadata#the-metadata-object)).
+- Metadata in a layout is automatically applied to all pages wrapped by that layout unless a child specifies its own metadata; nested layouts also override parent metadata.
+
+[The `metadata` object](https://nextjs.org/docs/app/api-reference/functions/generate-metadata#the-metadata-object)
+
+```jsx
+/* app/layout.js */
+import './globals.css';
+import MainHeader from './components/main-header/main-header';
+//import MainHeaderBackground from './components/main-header/main-header-background';
+
+export const metadata = {
+  title: 'NextLevel Food',
+  description: 'Delicious meals, shared by a food-loving community.',
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body>
+        {/* <MainHeaderBackground /> */}
+        <MainHeader />
+        {children}
+      </body>
+    </html>
+  );
+}
+```
+
+* Adding metadata to a layout will automatically be added to all the pages that are wrapped by the layout.
+* Unless a page specifies its own metadata.
+* In nested layouts, metadata would also win over the root layout metadata.
+
+#### 132.2.2 Overriding metadata in a nested page
+
+**Subsection Summary**
+- Exports page-specific `metadata` in `app/meals/page.js` to override root layout values.
+- Sets `title` ("All Meals") and `description` for the `/meals` route.
+- Demonstrates the override behavior: `/meals` shows "All Meals" in the tab and custom description instead of root defaults.
+- The page uses `Suspense` for the async `Meals` component while keeping the page component sync for metadata export compatibility.
+
+```jsx
+/* app/meals/page.js */
+import { Suspense } from 'react';
+import Link from 'next/link'
+import classes from './page.module.css'
+import MealsGrid from '../components/meals/meals-grid'
+import { getMeals } from '@/lib/meals';
+
+export const metadata = {
+  title: 'All Meals',
+  description: 'Browse the delicious meals shared by our vibrant community.',
+};
+
+export async function Meals(){
+  const meals = await getMeals();
+  return <MealsGrid meals={meals} />
+}
+
+//export default async function MealsPage(){
+export default function MealsPage(){
+  //const meals = await getMeals();
+  return (
+    <>
+      <header className={classes.header}>
+        <h1>
+          Delicious meals, created <span className={classes.highlight}>by you</span>.
+        </h1>
+        <p>Choose your favorite recipe and cook it yourself. It is easy and fun!</p>
+        <p className={classes.cta}>
+          <Link href="/meals/share">Share Your Favorite Recipe</Link>
+        </p>
+      </header>
+      <main className={classes.main}>
+        {/* <MealsGrid meals={meals} /> */}
+        <Suspense fallback={<p className={classes.loading}>Fetching meals...</p>}>
+          <Meals />
+        </Suspense>
+      </main>
+    </>
+  )
+}
+```
+
+#### 132.2.3 Verifying metadata in browser
+
+**Subsection Summary**
+- Shows a side-by-side view of the HTML source and rendered page for `/meals`.
+- Highlights how `metadata` maps to `<title>` and `<meta name="description">` in the HTML output.
+- Confirms the browser tab displays "All Meals" and the description is present for SEO and social sharing.
+
+![title and description metadata](../img/section03-lecture132-001.png)
+
+---
+
+### 🐞 132.3 Issues:
+
+- Documentation typo: "laso" should be "also" in the layout metadata inheritance note.
+- The lesson code shows commented-out variants (e.g. `MealsPage` sync vs async); this is instructional but may confuse readers about the canonical pattern.
+- No validation that `metadata` keys (e.g. `title`, `description`) follow length recommendations (title ~60 chars, description ~160 chars for SEO).
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| Typo "laso" → "also" in layout metadata note | ✅ Fixed | `docs/LECTURE_STEPS.md` — corrected in 132.2.1 subsection. |
+| Commented code may confuse canonical pattern | ℹ️ Informational | `app/meals/page.js` — `//export default async function MealsPage()` and commented `MealsGrid`; intentional for lecture flow but could be cleaned for production. |
+| No SEO length guidance for metadata | ℹ️ Informational | `app/layout.js`, `app/meals/page.js` — Consider adding comments or docs that `title` ~60 chars and `description` ~160 chars for optimal search display. |
+
+### 🧱 132.4 Pending Fixes (TODO)
+
+- [ ] Implement `generateMetadata` for dynamic routes (e.g. `app/meals/[mealSlug]/page.js`) to set `title` and `description` from meal data — see [Next.js generateMetadata](https://nextjs.org/docs/app/api-reference/functions/generate-metadata).
+- [ ] Add metadata to remaining pages (`app/page.js`, `app/meals/share/page.js`, `app/community/page.js`) for consistent SEO coverage.
+- [ ] Optionally add `openGraph` and `twitter` fields to `metadata` in `app/layout.js` for richer social sharing previews.
+
+[↑ top — 132. Lesson 132 — *Adding Static Metadata*](#-132-lesson-132--adding-static-metadata)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ---
 
