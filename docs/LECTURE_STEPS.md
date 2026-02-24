@@ -7937,6 +7937,445 @@ This lesson explains why **uploaded meal images disappear or fail to display in 
 
 
 
+<br>
+
+## 🔧 131. Lesson 131 — *🔥 🔥 Bonus: Storing Uploaded Images In The Cloud (AWS S3) 🔥 🔥*
+
+[🧳 Section 03: *NextJS Essential (App Router)*](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [131. Lesson 131 — *Bonus: Storing Uploaded Images In The Cloud (AWS S3)*](#-131-lesson-131--bonus-storing-uploaded-images-in-the-cloud-aws-s3)
+- [131.1 Context](#1311-context)
+- [131.2 Updating code according the context](#1312-updating-codetheory-according-the-context)
+  - [131.2.1 Bonus: Storing Uploaded Images In The Cloud (AWS S3)](#13121-bonus-storing-uploaded-images-in-the-cloud-aws-s3)
+  - [131.2.2 Create an AWS account and Create a S3 bucket](#13122-create-an-aws-account-and-create-a-s3-bucket)
+  - [131.2.3 Upload the dummy image files](#13123-upload-the-dummy-image-files)
+  - [131.2.4 Configure the bucket for serving the images](#13124-configure-the-bucket-for-serving-the-images)
+  - [131.2.5 Update the NextJS code to use those S3 images](#13125-update-the-nextjs-code-to-use-those-s3-images)
+  - [131.2.6 Allowing S3 as an image source](#13126-allowing-s3-as-an-image-source)
+  - [131.2.7 Storing uploaded images on S3](#13127-storing-uploaded-images-on-s3)
+  - [131.2.8 Granting the NextJS backend AWS access permissions](#13128-granting-the-nextjs-backend-aws-access-permissions)
+- [131.3 Issues](#1313-issues)
+- [131.4 Pending Fixes (TODO)](#1314-pending-fixes-todo)
+
+### 🧠 131.1 Context:
+
+This lesson provides a **bonus implementation** that solves the production image storage problem introduced in Lesson 130 by integrating **AWS S3** (Simple Storage Service) as cloud-based object storage for meal images. Instead of writing files to the local filesystem, the app uploads user images to an S3 bucket and serves them via public URLs.
+
+**Key Concepts:**
+
+1. **AWS S3** — A scalable object storage service that allows storing and retrieving files (images, documents, etc.) via HTTP/HTTPS. Objects are organized in "buckets" with globally unique names.
+2. **Bucket** — A top-level container for objects in S3. Each bucket has its own URL (e.g. `https://your-bucket-name.s3.amazonaws.com/object-key`) and configurable access policies.
+3. **Bucket Policy** — An AWS IAM-style JSON document that defines who can access objects. For public read access, the policy grants `s3:GetObject` to `Principal: "*"` for objects under `arn:aws:s3:::BUCKET_NAME/*`.
+4. **@aws-sdk/client-s3** — The official AWS SDK v3 package for Node.js. Used to call `putObject()` from the Next.js server to upload files to S3.
+5. **Environment variables** — `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in `.env.local` authenticate the Next.js backend to perform S3 writes; they are read server-side only and must never be committed.
+6. **Next.js `remotePatterns`** — The `<Image>` component requires allowed external domains. S3 bucket hostnames (e.g. `bucket-name.s3.amazonaws.com`) must be added to `next.config.js` under `images.remotePatterns`.
+
+**When and why it's used:**
+
+- After Lesson 130, the app writes uploads to `public/images/`, which breaks in production. This lesson migrates to S3 so that images persist across deployments and serverless invocations.
+- In production, the Next.js app runs server actions (e.g. `saveMeal`) that receive `FormData` with image blobs. Those blobs are buffered and uploaded to S3 via `putObject`. The database stores only the filename; the full URL is constructed client-side using the bucket base URL.
+
+**In this project:**
+
+- `lib/meals.js` — `saveMeal()` uses `S3.putObject()` instead of `fs.createWriteStream`. The database stores `fileName` (e.g. `burger.jpg`) rather than `/images/burger.jpg`.
+- `app/components/meals/meal-item.js` and `app/meals/[mealSlug]/page.js` — `<Image src={...}>` uses `https://BUCKET.s3.amazonaws.com/${image}`.
+- `initdb.js` — Dummy meal `image` values change from `/images/burger.jpg` to `burger.jpg`.
+- `next.config.js` — Adds `remotePatterns` for the S3 hostname.
+- `.env.local` — Holds `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (not committed).
+
+**Advantages:**
+
+- Images survive deployments and serverless restarts.
+- Scales horizontally; all instances share the same S3 bucket.
+- S3 offers durable storage, CDN integration, and fine-grained access control.
+- Free tier (e.g. 5 GB storage, 20,000 GET requests/month) suits small projects.
+
+**Disadvantages / Gotchas:**
+
+- **Public bucket** — The lesson configures public read access for simplicity. Anyone with the object URL can view the image; do not store sensitive data.
+- **Credentials** — Access keys in `.env.local` grant broad S3 access; rotate them regularly and restrict via IAM policies to a single bucket.
+- **Cost** — Beyond free tier, storage and transfer can incur charges; monitor usage.
+- **Region** — S3 client must use the correct `region` (e.g. `us-east-1`) where the bucket was created.
+- **No `await` on `putObject`** — The lesson's example omits `await`; in practice, use `await s3.putObject(...)` to handle upload errors before saving to the database.
+
+**When to consider alternatives:**
+
+- **Vercel Blob** or **Cloudflare R2** — Simpler setup for Vercel or Cloudflare-hosted apps; fewer AWS concepts.
+- **Signed URLs** — For private images, generate temporary signed URLs instead of making the bucket public.
+- **IAM roles** — On AWS (EC2, ECS, Lambda), prefer instance/task roles over access keys in `.env`.
+
+---
+
+### ⚙️ 131.2 Updating code/theory according the context:
+
+#### **Summary**
+
+- This section walks through migrating meal image storage from the local filesystem to AWS S3.
+- It covers: creating an S3 bucket, uploading dummy images, configuring public read access via bucket policy, updating Next.js to load images from S3 URLs, configuring `next.config.js` for external images, and uploading new meal images via `@aws-sdk/client-s3`.
+- Subsections 131.2.1–131.2.8 form a step-by-step flow: AWS setup → data migration → frontend changes → server-side upload logic → credentials configuration.
+
+#### 131.2.1 Bonus: Storing Uploaded Images In The Cloud (AWS S3)
+
+**Subsection Summary**
+
+- Introduces AWS S3 as the recommended replacement for local filesystem storage for uploaded images.
+- Explains that S3 is a cloud service for storing and serving files, with configurable access and free tier options.
+- Sets the scope: store user-uploaded meal images in S3 and serve them on the Next.js website.
+
+As explained in the previous lecture, storing uploaded files (or any other files that are generated at runtime) on the local filesystem is not a great idea - because those files will simply not be available in the running NextJS applications.
+
+Instead, it's recommended that you store such files (e.g., uploaded images) via some cloud file storage - like AWS S3.
+
+AWS S3 is a service provided by AWS which allows you to store and serve (depending on its configuration) files. You can get started with this service for free but you should check out its pricing page to avoid any unwanted surprises.
+
+In this lecture, I'll explain how you could use AWS S3 to store uploaded users images & serve them on the NextJS website.
+
+#### 131.2.2 Create an AWS account and Create a S3 bucket
+
+**Subsection Summary**
+
+- Describes how to create an AWS account and an S3 bucket as prerequisites for cloud storage.
+- Buckets are top-level containers for objects; each bucket must have a globally unique name (e.g. `maxschwarzmueller-nextjs-demo-users-image`).
+- Default bucket settings can be accepted; only the bucket name needs to be chosen.
+
+1. Create an account:
+
+In order to use AWS S3, you need an AWS account. You can create one here.
+
+2. Create a S3 bucket:
+
+Once you created an account (and you logged in), you should navigate to the S3 console to create a so-called "bucket".
+
+"Buckets" are containers that can be used to store files (side-note: you can store any files - not just images).
+
+Every bucket must have a globally unique name, hence you should become creative. You could, for example, use a name like <your-name>-nextjs-demo-users-image.
+
+I'll use maxschwarzmueller-nextjs-demo-users-image in this example here.
+
+When creating the bucket, you can confirm all the default settings - the name's the only thing you should set.
+
+#### 131.2.3 Upload the dummy image files
+
+**Subsection Summary**
+
+- Migrates existing dummy images from the local `public/images` folder into the new S3 bucket via the AWS Console.
+- Uses the S3 "Upload" button to drag-and-drop the previously local images into the bucket.
+- Screenshots (`section03-lecture131-001.png`, `section03-lecture131-002.png`) show the upload UI and the resulting objects list in the bucket.
+
+Now that the bucket was created, you can already add some files to it => The dummy images that were previously stored locally in the public/images folder.
+
+To do that, select your created bucket and click the "Upload" button. Then drag & drop those images into the box and confirm the upload.
+
+![](../img/section03-lecture131-001.png)
+
+Thereafter, all those images should be in the bucket:
+
+![](../img/section03-lecture131-002.png)
+
+#### 131.2.4 Configure the bucket for serving the images
+
+**Subsection Summary**
+
+- Configures the S3 bucket so images can be loaded by the Next.js app via public URLs.
+- By default, S3 blocks all public access; this subsection disables "Block all public access" and adds a Bucket Policy granting `s3:GetObject` to `Principal: "*"`.
+- The policy uses `arn:aws:s3:::DOC-EXAMPLE-BUCKET/*` (replaced with the actual bucket name). Screenshots (`section03-lecture131-003.png`, `section03-lecture131-004.png`) show the Permissions tab and how to verify the Object URL.
+
+Now that you uploaded those dummy images, it's time to configure the bucket such that the images can be loaded from the NextJS website.
+
+Because, by default, this is not possible! By default, S3 buckets are "locked down" and the files in there are secure & not accessible by anyone else.
+
+But for our purposes here, we must update the bucket settings to make sure the images can be viewed by everyone.
+
+To do that, as a first step, click on the "Permissions" tab and "Edit" the "Block public access" setting:
+
+![](../img/section03-lecture131-003.png)
+
+Then, disable the "Block all public access" checkbox (and with it, all other checkboxes) and select "Save Changes".
+
+Type "confirm" into the confirmation overlay once it pops up.
+
+That's not all though - as a next (and final step), you must add a so-called "Bucket Policy". That's an AWS-specific policy document that allows you to manage the permissions of the objects stored in the bucket.
+
+You can add such a "Bucket Policy" right below the "Block all public access" area, still on the "Permissions" tab:
+
+Click "Edit" and insert the following bucket policy into the box:
+```yml
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PublicRead",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": [
+                "s3:GetObject",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::DOC-EXAMPLE-BUCKET/*"
+            ]
+        }
+    ]
+}
+```
+Replace `DOC-EXAMPLE-BUCKET` with your bucket name (***`maxschwarzmueller-nextjs-demo-users-image`*** in my case).
+
+Then, click "Save Changes".
+
+Now the bucket is configure to grant access to all objects inside of it to anyone who has a URL pointing to one of those objects.
+
+Therefore, you should now of course not add any files into the bucket that you don't want to share with the world!
+
+To test if everything works, click on one of the images you uploaded (in the bucket).
+
+Then click on the "Object URL" - if opening it works (and you can see the image), you configured everything as needed.
+
+![](../img/section03-lecture131-004.png)
+
+
+#### 131.2.5 Update the NextJS code to use those S3 images
+
+**Subsection Summary**
+
+- Updates Next.js to load meal images from S3 URLs instead of local `/images/` paths.
+- Changes: remove `public/images` folder, update `initdb.js` to store filenames only (e.g. `burger.jpg`), and update `meal-item.js` and `app/meals/[mealSlug]/page.js` to use `src={\`https://BUCKET.s3.amazonaws.com/${image}\`}`.
+- Requires re-running `node initdb.js` after deleting `meals.db` to apply new image values. This triggers the Next.js `remotePatterns` error, which is fixed in 131.2.6.
+
+Now that the images are stored + served via S3, it's time to also load them from there in your NextJS app.
+
+As a first step, you can delete the `public/images` folder (so that an empty `public/` folder remains).
+
+Now, if you also delete the `.next` folder in the NextJS project and you then visit `localhost:3000/meals`, you should see a bunch of meals without images.
+
+To bring them back, as a first step, edit the database data by updating the `initdb.js` file: Change all the image property values from `image: '/images/burger.jpg'`, to `image: 'burger.jpg'` (and do that for all meals).
+
+Alternatively, you find an updated `initdb.js` file attached.
+
+Next, go to the `components/meals/meal-item.js` file (which contains the MealItem component) and update the `<Image>` `src`:
+```html
+<Image
+  src={`https://maxschwarzmueller-nextjs-demo-users-image.s3.amazonaws.com/${image}`}
+  alt={title}
+  fill
+/>
+```
+*Of course, use your S3 URL / bucket name!*
+
+The new `src` value is a string that contains the S3 URL to your bucket objects (i.e., the URL you previously clicked for testing purposes - without the image file name at the end). The actual image name that should be loaded is then dynamically inserted via `${image}`.
+
+Note: This will only work if the images stored in the S3 bucket have the names referenced in the `initdb.js` file!
+
+You should also update the app/meals/[mealSlug]/page.js file and make sure that the image on this page is also fetched from S3:
+
+```html
+<Image
+  src={`https://maxschwarzmueller-nextjs-demo-users-image.s3.amazonaws.com/${meal.image}`}
+  alt={meal.title}
+  fill
+/>
+```
+
+*Of course, use your S3 URL / bucket name!*
+
+Now, to reset the database data, you should delete your `meals.db` file (i.e., delete the SQLite database file) and re-run `node initdb.js` to re-initialize it (with the updated image values).
+
+If you do that, and you then restart the development server (`npm run dev`), you'll notice that you now get an error when visiting the `/meals` page:
+
+```
+Error: Invalid src prop (https://maxschwarzmueller-nextjs-demo-users-image.s3.amazonaws.com/burger.jpg) on `next/image`, hostname "maxschwarzmueller-nextjs-demo-users-image.s3.amazonaws.com" is not configured under images in your `next.config.js`
+```
+
+
+#### 131.2.6 Allowing S3 as an image source
+
+**Subsection Summary**
+
+- Resolves the Next.js `<Image>` error: hostname not configured in `images` config.
+- Adds `remotePatterns` in `next.config.js` with `protocol: 'https'`, the S3 bucket hostname (e.g. `maxschwarzmueller-nextjs-demo-users-image.s3.amazonaws.com`), and `pathname: '/**'`.
+- Allows the `<Image>` component to load external S3 URLs for optimization and validation.
+
+You get this error because, by default, NextJS does not allow external URLs when using the `<Image>` component.
+
+You explicitly have to allow such a URL in order to get rid of this error.
+
+That's done by editing the `next.config.js` file:
+
+```js
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'maxschwarzmueller-nextjs-demo-users-image.s3.amazonaws.com',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
+};
+```
+
+*Of course, use your S3 URL / bucket name!*
+
+This remotePatterns config allows this specific S3 URL as a valid source for images.
+
+With the config file updated + saved, you should now be able to visit `/meals` and see all those images again.
+
+
+#### 131.2.7 Storing uploaded images on S3
+
+**Subsection Summary**
+
+- Implements server-side upload of user-submitted meal images to S3 via `@aws-sdk/client-s3`.
+- Replaces `fs.createWriteStream` logic in `lib/meals.js` with `s3.putObject()` using `Bucket`, `Key` (filename), `Body` (Buffer from `arrayBuffer`), and `ContentType`.
+- Stores only the filename in `meal.image` for the database; the full S3 URL is built in the frontend components. The S3 client is initialized with `region: 'us-east-1'`.
+
+Now that we can see those dummy images again, it's finally time to also "forward" user-generated (i.e., uploaded) images to S3.
+
+This can be done with help of a package provided by AWS - the `@aws-sdk/client-s3` package. This package provides functionalities that allow you to interact with S3 - e.g., to store files in a specific bucket.
+
+Install that package via `npm install @aws-sdk/client-s3`.
+
+Then, go to your `lib/meals.js` file and import the AWS S3 SDK (at the top of the file):
+
+```js
+import { S3 } from '@aws-sdk/client-s3';
+```
+
+Next, initialize it by adding this line (e.g., right above the line where the db object is created):
+
+```js
+const s3 = new S3({
+  region: 'us-east-1'
+});
+const db = sql('meals.db'); // <- this was already there!
+```
+Almost there!
+
+Now, edit the `saveMeal()` function and remove all code that was related to storing the image on the local file system.
+
+Instead, add this code:
+
+```js
+s3.putObject({
+  Bucket: 'maxschwarzmueller-nextjs-demo-users-image',
+  Key: fileName,
+  Body: Buffer.from(bufferedImage),
+  ContentType: meal.image.type,
+});
+```
+
+*Of course, use your S3 URL / bucket name!*
+
+Also make sure to save the image filename under `meal.image`:
+
+```js
+meal.image = fileName;
+```
+
+The final saveMeal() function should look like this:
+
+```js
+export async function saveMeal(meal) {
+  meal.slug = slugify(meal.title, { lower: true });
+  meal.instructions = xss(meal.instructions);
+ 
+  const extension = meal.image.name.split('.').pop();
+  const fileName = `${meal.slug}.${extension}`;
+ 
+  const bufferedImage = await meal.image.arrayBuffer();
+ 
+  s3.putObject({
+    Bucket: 'maxschwarzmueller-nextjs-demo-users-image',
+    Key: fileName,
+    Body: Buffer.from(bufferedImage),
+    ContentType: meal.image.type,
+  });
+ 
+ 
+  meal.image = fileName;
+ 
+  db.prepare(
+    `
+    INSERT INTO meals
+      (title, summary, instructions, creator, creator_email, image, slug)
+    VALUES (
+      @title,
+      @summary,
+      @instructions,
+      @creator,
+      @creator_email,
+      @image,
+      @slug
+    )
+  `
+  ).run(meal);
+}
+```
+
+
+#### 131.2.8 Granting the NextJS backend AWS access permissions
+
+**Subsection Summary**
+
+- Grants the Next.js backend permission to write to S3 via AWS access keys.
+- Adds `.env.local` with `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, obtained from AWS Console → Security Credentials → Access Keys.
+- Keys are used server-side only by the AWS SDK; `.env.local` must not be committed to Git. With this step, the full flow works: creating meals, uploading images, and viewing them in production.
+
+Now, there's just one last, yet very important, step missing: Granting your NextJS app S3 access permissions.
+
+We did configure S3 to serve the bucket content to everyone.
+
+But we did not (and should not!) configure it to allow everyone to write to the bucket or change the bucket contents.
+
+But that's what our NextJS app (via the S3 AWS SDK) now tries to do!
+
+To grant our app appropriate permissions, you must set up AWS access keys for your app.
+
+This is done by adding a `.env.local` file to your root NextJS project. This file will automatically be read by NextJS and the environment variables configured in there will be made available to the backend (!) part of your app.
+
+You can learn more about setting up environment variables for NextJS apps here: https://nextjs.org/docs/app/building-your-application/configuring/environment-variables.
+
+In this `.env.local` file, you must add two key-value pairs:
+
+```
+AWS_ACCESS_KEY_ID=<your aws access key>
+AWS_SECRET_ACCESS_KEY=<your aws secret access key>
+```
+
+You get those access keys from inside the AWS console (in the browser). You can get them by clicking on your account name (in the top right corner of the AWS console) and then "Security Credentials".
+
+Scroll down to the "Access Keys" area and create a new Access Key. Copy & paste the values into your `.env.local` file and never share these keys with anyone! Don't commit them to Git or anything like that!
+
+You can learn more about them here: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html
+
+With all that done, finally, you should be able to create new meals, upload images and see them on `/meals`. Even in production! Because now, the images are stored on S3!
+
+You find the finished, adjusted code attached to this lecture. Please note that the .env.local file is not included - you must add it (and use your own credentials) if you want to run the attached code.
+
+
+### 🐞 131.3 Issues:
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| `putObject` not awaited in `saveMeal()` | ⚠️ Identified | `lib/meals.js` — `s3.putObject(...)` should be `await s3.putObject(...)` to ensure upload completes before DB insert and to surface errors. |
+| Bucket name and region hardcoded | ℹ️ Informational | `lib/meals.js`, `next.config.js`, `meal-item.js`, `app/meals/[mealSlug]/page.js` — Use `process.env.AWS_S3_BUCKET`, `process.env.AWS_REGION`, and `NEXT_PUBLIC_S3_BASE_URL` for flexibility. |
+| Public bucket exposes all images to anyone with URL | ℹ️ Informational | S3 Bucket Policy — `Principal: "*"` with `s3:GetObject` allows anonymous read; fine for public meal images, not for private data. |
+| Credentials in `.env.local` require manual setup | ℹ️ Informational | `.env.local` — Must add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`; not included in repo; users must create IAM keys in AWS Console. |
+| `ContentType` from `meal.image.type` may be empty | ℹ️ Informational | `lib/meals.js` — `meal.image` (File from FormData) may have empty `type` for some browsers; consider fallback (e.g. `image/jpeg`). |
+
+### 🧱 131.4 Pending Fixes (TODO)
+
+- [ ] Add `await` to `s3.putObject()` in `lib/meals.js` — `saveMeal()` to ensure upload completes before DB insert and to catch/rethrow upload errors.
+- [ ] Extract bucket name, region, and S3 base URL to environment variables — e.g. `AWS_S3_BUCKET`, `AWS_REGION`, `NEXT_PUBLIC_S3_BASE_URL` in `lib/meals.js`, `next.config.js`, `meal-item.js`, `app/meals/[mealSlug]/page.js`.
+- [ ] Add fallback `ContentType` when `meal.image.type` is empty — e.g. `ContentType: meal.image.type || 'image/jpeg'` in `lib/meals.js` `putObject` call.
+- [ ] Ensure `.env.local` (and `.env*.local`) are in `.gitignore` — prevent accidental commit of AWS credentials.
+- [ ] Document `.env.local` template — e.g. `.env.example` with `AWS_ACCESS_KEY_ID=`, `AWS_SECRET_ACCESS_KEY=`, `AWS_S3_BUCKET=`, `AWS_REGION=` (values omitted).
+
+[↑ top — 131. Lesson 131 — *Bonus: Storing Uploaded Images In The Cloud (AWS S3)*](#-131-lesson-131--bonus-storing-uploaded-images-in-the-cloud-aws-s3)
+
+
 
 ---
 
