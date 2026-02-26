@@ -12,39 +12,65 @@ This project is a modern web application built with **Next.js** to showcase a fo
   - **Framework**: Next.js (App Router)
   - **Language**: JavaScript / React
   - **Styling**: Vanilla CSS with CSS Modules
+  - **Database**: SQLite via `better-sqlite3`
   - **Assets**: Optimized images via `next/image`
+  - **Utilities**: `slugify` (URL slugs), `xss` (sanitization)
 - **Key Components**: 
   - `MainHeader`: Global navigation and branding.
   - `NavLink`: Interactive links with active-state detection.
   - `ImageSlideshow`: Automated, performant hero slideshow.
   - `MainHeaderBackground`: Decoupled decorative SVG background.
+  - `MealsGrid` / `MealItem`: Meals listing and card components.
+  - `ImagePicker`: Custom file upload with preview.
+  - `MealsFormSubmit`: Submit button with `useFormStatus`.
 
 ## 📑 Table of Contents
-- [👨🏾‍💻 Project Overview](#-project-overview)
+- [👨🏾‍💻 Project: Foodies Next.js App](#-project-foodies-nextjs-app)
+- [📋 Project Overview](#-project-overview)
 - [📑 Table of Contents](#-table-of-contents)
 - [📁 Visual Project Tree](#-visual-project-tree)
 - [🧳 Section 03: NextJS Essential (App Router)](#-section-03-nextjs-essential-app-router)
-  - [📚 Lesson 097: Exercise: Task and solution](#-97-lesson-097--exercise-task-and-solution)
-  - [📚 Lesson 098: Revisiting: The Concept Of Layouts](#-98-lesson-098--revisiting-the-concept-of-layouts)
-  - [📚 Lesson 099: Adding a Custom Component To A Layout](#-99-lesson-099--adding-a-custom-component-to-a-layout)
-  - [📚 Lesson 100: Styling NextJS Project: Your Options & Using CSS Modules](#-100-lesson-100--styling-nextjs-project-your-options--using-css-modules)
-  - [📚 Lesson 101: Optimizing Images with the NextJS Image Component](#-101-lesson-101--optimizing-images-with-the-nextjs-image-component)
-  - [📚 Lesson 102: Using More Custom Components](#-102-lesson-102--using-more-custom-components)
-  - [📚 Lesson 103: Populating The Starting Page Content](#-103-lesson-103--populating-the-starting-page-content)
-  - [📚 Lesson 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
-  - [📚 Lesson 105: React Server Components vs Client Components](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
-  - [📚 Lesson 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
-  - [📚 Lesson 107: Outputting Meals Data & Images With Unknown Dimensions](#-107-lesson-107--outputting-meals-data--images-with-unknown-dimensions)
-  - [📚 Lesson 108: Setting Up A SQLite Database](#-108-lesson-108--setting-up-a-sqlite-database)
-  - [📚 Lesson 109: Fetching Data By Leveraging NextJS & Fullstack Capabilities](#-109-lesson-109--fetching-data-by-leveraging-nextjs--fullstack-capabilities)
-  - [📚 Lesson 110: Adding A Loading Page](#-110-lesson-110--adding-a-loading-page)
-  - [📚 Lesson 111: Using Suspense & Streamed Responses For Granular Loading State Management](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
-  - [📚 Lesson 112: Handling Errors](#-112-lesson-112--handling-errors)
-  - [📚 Lesson 113: Handling "Not Found" States](#-113-lesson-113--handling-not-found-states)
-  - [📚 Lesson 114: Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114--loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
-  - [📚 Lesson 115: Throwing Not Found Errors For Individual Meals](#-115-lesson-115--throwing-not-found-errors-for-individual-meals)
-  - [📚 Lesson 116: Getting Started with the "Share Meal" Form](#-116-lesson-116---getting-started-with-the-share-meal-form)
-  - [📚 Lesson 117: Getting Started with a Custom Image Picker Input Component](#-117-lesson-117--getting-started-with-a-custom-image-picker-input-component)
+  <details>
+  <summary>Section 03 — Lessons</summary>
+
+    * [📚 Lesson 097: Exercise: Task and solution](#-97-lesson-097--exercise-task-and-solution)
+    * [📚 Lesson 098: Revisiting: The Concept Of Layouts](#-98-lesson-098--revisiting-the-concept-of-layouts)
+    * [📚 Lesson 099: Adding a Custom Component To A Layout](#-99-lesson-099--adding-a-custom-component-to-a-layout)
+    * [📚 Lesson 100: Styling NextJS Project: Your Options & Using CSS Modules](#-100-lesson-100--styling-nextjs-project-your-options--using-css-modules)
+    * [📚 Lesson 101: Optimizing Images with the NextJS Image Component](#-101-lesson-101--optimizing-images-with-the-nextjs-image-component)
+    * [📚 Lesson 102: Using More Custom Components](#-102-lesson-102--using-more-custom-components)
+    * [📚 Lesson 103: Populating The Starting Page Content](#-103-lesson-103--populating-the-starting-page-content)
+    * [📚 Lesson 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
+    * [📚 Lesson 105: React Server Components vs Client Components](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
+    * [📚 Lesson 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
+    * [📚 Lesson 107: Outputting Meals Data & Images With Unknown Dimensions](#-107-lesson-107--outputting-meals-data--images-with-unknown-dimensions)
+    * [📚 Lesson 108: Setting Up A SQLite Database](#-108-lesson-108--setting-up-a-sqlite-database)
+    * [📚 Lesson 109: Fetching Data By Leveraging NextJS & Fullstack Capabilities](#-109-lesson-109--fetching-data-by-leveraging-nextjs--fullstack-capabilities)
+    * [📚 Lesson 110: Adding A Loading Page](#-110-lesson-110--adding-a-loading-page)
+    * [📚 Lesson 111: Using Suspense & Streamed Responses For Granular Loading State Management](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
+    * [📚 Lesson 112: Handling Errors](#-112-lesson-112--handling-errors)
+    * [📚 Lesson 113: Handling "Not Found" States](#-113-lesson-113--handling-not-found-states)
+    * [📚 Lesson 114: Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114--loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
+    * [📚 Lesson 115: Throwing Not Found Errors For Individual Meals](#-115-lesson-115--throwing-not-found-errors-for-individual-meals)
+    * [📚 Lesson 116: Getting Started with the "Share Meal" Form](#-116-lesson-116---getting-started-with-the-share-meal-form)
+    * [📚 Lesson 117: Getting Started with a Custom Image Picker Input Component](#-117-lesson-117--getting-started-with-a-custom-image-picker-input-component)
+    * [📚 Lesson 118: Adding an Image Preview to the Picker](#-118-lesson-118--adding-an-image-preview-to-the-picker)
+    * [📚 Lesson 119: Improving the Image Picker Component](#-119-lesson-119--improving-the-image-picker-component)
+    * [📚 Lesson 120: Introducing & Using Server Actions for Handling Form Submissions](#-120-lesson-120--introducing--using-server-actions-for-handling-form-submissions)
+    * [📚 Lesson 121: Storing Server Actions in Separate Files](#-121-lesson-121--storing-server-actions-in-separate-files)
+    * [📚 Lesson 122: Creating a Slug & Sanitizing User Input for XSS Protection](#-122-lesson-122--creating-a-slug--sanitizing-user-input-for-xss-protection)
+    * [📚 Lesson 123: Storing Uploaded Images & Storing Data in the Database](#-123-lesson-123--storing-uploaded-images--storing-data-in-the-database)
+    * [📚 Lesson 124: Managing the Form Submission Status with useFormStatus](#-124-lesson-124--managing-the-form-submission-status-with-useformstatus)
+    * [📚 Lesson 125: Adding Server-Side Input Validation](#-125-lesson-125--adding-server-side-input-validation)
+    * [📚 Lesson 127: Working with Server Action Responses & useFormState (useActionState)](#-127-lesson-127--working-with-server-action-responses--useformstate-useactionstate)
+    * [📚 Lesson 128: Building For Production & Understanding NextJS Caching](#-128-lesson-128--building-for-production--understanding-nextjs-caching)
+    * [📚 Lesson 129: Triggering Cache Revalidations](#-129-lesson-129--triggering-cache-revalidations)
+    * [📚 Lesson 130: Don't Store Files Locally On The Filesystem](#-130-lesson-130--dont-store-files-locally-on-the-filesystem)
+    * [📚 Lesson 131: Bonus: Storing Uploaded Images In The Cloud (AWS S3)](#-131-lesson-131--bonus-storing-uploaded-images-in-the-cloud-aws-s3)
+    * [📚 Lesson 132: Adding Static Metadata](#-132-lesson-132--adding-static-metadata)
+    * [📚 Lesson 133: Adding Dynamic Metadata](#-133-lesson-133--adding-dynamic-metadata)
+
+  </details>
 
 ## 📁 Visual Project Tree
 ```
@@ -59,7 +85,12 @@ This project is a modern web application built with **Next.js** to showcase a fo
 │   │   │   └── image-slideshow.module.css
 │   │   ├── meals/
 │   │   │   ├── image-picker.js    # 📄 Custom image picker client component
-│   │   │   └── image-picker.module.css # 📄 Styles for image picker
+│   │   │   ├── image-picker.module.css # 📄 Styles for image picker
+│   │   │   ├── meal-item.js       # 📄 Single meal card display component
+│   │   │   ├── meal-item.module.css
+│   │   │   ├── meals-form-submit.js # 📄 Submit button with useFormStatus
+│   │   │   ├── meals-grid.js      # 📄 Grid layout for meals list
+│   │   │   └── meals-grid.module.css
 │   │   └── main-header/
 │   │       ├── main-header.js     # 📄 Global navigation header
 │   │       ├── main-header.module.css
@@ -69,21 +100,33 @@ This project is a modern web application built with **Next.js** to showcase a fo
 │   │       └── nav-link.module.css
 │   ├── meals/
 │   │   ├── [mealSlug]/
-│   │   │   └── page.js            # 📄 Dynamic route for meal details
+│   │   │   ├── page.js            # 📄 Dynamic route for meal details
+│   │   │   └── page.module.css    # 📄 Styles for meal detail page
 │   │   ├── share/
-│   │   │   └── page.js            # 📄 Page for sharing new meals
+│   │   │   ├── page.js            # 📄 Page for sharing new meals
+│   │   │   ├── page.module.css    # 📄 Share form styles
+│   │   │   └── error.js           # 📄 Error boundary for share route
+│   │   ├── error.js               # 📄 Error boundary for meals section
 │   │   ├── layout.js              # 📄 Layout for meals section
-│   │   └── page.js                # 📄 Main meals listing page
+│   │   ├── loading.module.css     # 📄 Styles for loading skeleton
+│   │   ├── loading-out.js         # 📄 Loading UI for meals page
+│   │   ├── page.js                # 📄 Main meals listing page
+│   │   └── page.module.css
 │   ├── globals.css                # 📄 Global application styles
 │   ├── icon.png                   # 📄 App icon
 │   ├── layout.js                  # 📄 Root application layout
+│   ├── not-found.js               # 📄 Global 404 page
 │   ├── page.js                    # 📄 Landing/Home page
 │   └── page.module.css            # 📄 Styles for the landing page
-├── assets/                        # 📁 Static assets (images, icons)
+├── lib/
+│   ├── actions.js                 # 📄 Server actions for form submission
+│   └── meals.js                  # 📄 Database queries for meals
 ├── docs/
 │   └── LECTURE_STEPS.md           # 📄 This educational documentation
 ├── img/                           # 📁 Screenshots for documentation
-├── public/                        # 📁 Static assets served directly
+├── public/
+│   └── images/                    # 📁 Uploaded meal images
+├── initdb.js                      # 📄 SQLite database initialization script
 ├── jsconfig.json                  # 📄 Path aliases configuration
 ├── next.config.js                 # 📄 Next.js configuration
 ├── package.json                   # 📄 Project dependencies
@@ -94,7 +137,8 @@ This project is a modern web application built with **Next.js** to showcase a fo
 
 ## 🧳 Section 03: *NextJS Essential (App Router)*
 
-### 📑 Table of Contents
+### 📑 Table of Contents (Section 03)
+- [📑 Table of Contents (Section 03)](#-table-of-contents-section-03)
 - [📚 Lesson 097: Exercise: Task and solution](#-97-lesson-097--exercise-task-and-solution)
 - [📚 Lesson 098: Revisiting: The Concept Of Layouts](#-98-lesson-098--revisiting-the-concept-of-layouts)
 - [📚 Lesson 099: Adding a Custom Component To A Layout](#-99-lesson-099--adding-a-custom-component-to-a-layout)
@@ -105,6 +149,32 @@ This project is a modern web application built with **Next.js** to showcase a fo
 - [📚 Lesson 104: Preparing an Image Slideshow](#-104-lesson-104--preparing-an-image-slideshow)
 - [📚 Lesson 105: React Server Components vs Client Components](#-105-lesson-105--react-server-components-vs-client-components---when-to-use-what)
 - [📚 Lesson 106: Using Client Components Efficiently](#-106-lesson-106--using-client-components-efficiently)
+- [📚 Lesson 107: Outputting Meals Data & Images With Unknown Dimensions](#-107-lesson-107--outputting-meals-data--images-with-unknown-dimensions)
+- [📚 Lesson 108: Setting Up A SQLite Database](#-108-lesson-108--setting-up-a-sqlite-database)
+- [📚 Lesson 109: Fetching Data By Leveraging NextJS & Fullstack Capabilities](#-109-lesson-109--fetching-data-by-leveraging-nextjs--fullstack-capabilities)
+- [📚 Lesson 110: Adding A Loading Page](#-110-lesson-110--adding-a-loading-page)
+- [📚 Lesson 111: Using Suspense & Streamed Responses For Granular Loading State Management](#-111-lesson-111--using-suspense--streamed-responses-for-granular-loading-state-management)
+- [📚 Lesson 112: Handling Errors](#-112-lesson-112--handling-errors)
+- [📚 Lesson 113: Handling "Not Found" States](#-113-lesson-113--handling-not-found-states)
+- [📚 Lesson 114: Loading and Rendering Meal Details via Dynamic Routes & Route Parameters](#-114-lesson-114--loading-and-rendering-meal-details-via-dynamic-routes--route-parameters)
+- [📚 Lesson 115: Throwing Not Found Errors For Individual Meals](#-115-lesson-115--throwing-not-found-errors-for-individual-meals)
+- [📚 Lesson 116: Getting Started with the "Share Meal" Form](#-116-lesson-116---getting-started-with-the-share-meal-form)
+- [📚 Lesson 117: Getting Started with a Custom Image Picker Input Component](#-117-lesson-117--getting-started-with-a-custom-image-picker-input-component)
+- [📚 Lesson 118: Adding an Image Preview to the Picker](#-118-lesson-118--adding-an-image-preview-to-the-picker)
+- [📚 Lesson 119: Improving the Image Picker Component](#-119-lesson-119--improving-the-image-picker-component)
+- [📚 Lesson 120: Introducing & Using Server Actions for Handling Form Submissions](#-120-lesson-120--introducing--using-server-actions-for-handling-form-submissions)
+- [📚 Lesson 121: Storing Server Actions in Separate Files](#-121-lesson-121--storing-server-actions-in-separate-files)
+- [📚 Lesson 122: Creating a Slug & Sanitizing User Input for XSS Protection](#-122-lesson-122--creating-a-slug--sanitizing-user-input-for-xss-protection)
+- [📚 Lesson 123: Storing Uploaded Images & Storing Data in the Database](#-123-lesson-123--storing-uploaded-images--storing-data-in-the-database)
+- [📚 Lesson 124: Managing the Form Submission Status with useFormStatus](#-124-lesson-124--managing-the-form-submission-status-with-useformstatus)
+- [📚 Lesson 125: Adding Server-Side Input Validation](#-125-lesson-125--adding-server-side-input-validation)
+- [📚 Lesson 127: Working with Server Action Responses & useFormState (useActionState)](#-127-lesson-127--working-with-server-action-responses--useformstate-useactionstate)
+- [📚 Lesson 128: Building For Production & Understanding NextJS Caching](#-128-lesson-128--building-for-production--understanding-nextjs-caching)
+- [📚 Lesson 129: Triggering Cache Revalidations](#-129-lesson-129--triggering-cache-revalidations)
+- [📚 Lesson 130: Don't Store Files Locally On The Filesystem](#-130-lesson-130--dont-store-files-locally-on-the-filesystem)
+- [📚 Lesson 131: Bonus: Storing Uploaded Images In The Cloud (AWS S3)](#-131-lesson-131--bonus-storing-uploaded-images-in-the-cloud-aws-s3)
+- [📚 Lesson 132: Adding Static Metadata](#-132-lesson-132--adding-static-metadata)
+- [📚 Lesson 133: Adding Dynamic Metadata](#-133-lesson-133--adding-dynamic-metadata)
 
 <br>
 
