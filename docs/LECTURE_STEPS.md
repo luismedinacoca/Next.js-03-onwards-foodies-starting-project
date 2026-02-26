@@ -8549,6 +8549,364 @@ export default function MealsPage(){
 [↑ top — 132. Lesson 132 — *Adding Static Metadata*](#-132-lesson-132--adding-static-metadata)
 
 
+<br>
+
+## 🔧 133. Lesson 133 — *Adding Dynamic Metadata*
+
+[🧳 Section 03: NextJS Essential (App Router)](#-section-03-nextjs-essential-app-router)
+
+### 📑 Table of Contents:
+- [133. Lesson 133 — *Adding Dynamic Metadata*](#-133-lesson-133--adding-dynamic-metadata)
+- [133.1 Context](#1331-context)
+- [133.2 Updating code/theory according the context](#1332-updating-codetheory-according-the-context)
+  - [133.2.1 Static metadata problem in dynamic routes](#13321-static-metadata-problem-in-dynamic-routes)
+  - [133.2.2 Introducing generateMetadata skeleton](#13322-introducing-generatemetadata-skeleton)
+  - [133.2.3 Using params to fetch meal and set metadata](#13323-using-params-to-fetch-meal-and-set-metadata)
+  - [133.2.4 Full implementation with null check](#13324-full-implementation-with-null-check)
+  - [133.2.5 Comparison of fragile vs robust approaches](#13325-comparison-of-fragile-vs-robust-approaches)
+  - [133.2.6 Optional refactor: removing await params](#13326-optional-refactor-removing-await-params)
+- [133.3 Issues](#1333-issues)
+- [133.4 Pending Fixes (TODO)](#1334-pending-fixes-todo)
+
+### 🧠 133.1 Context:
+
+**Dynamic metadata** in Next.js App Router allows page titles, descriptions, and other SEO fields to be computed at request time based on route parameters, database lookups, or other runtime data. Unlike static `metadata` exports (Lesson 132), `generateMetadata` is an async function that runs when the page is rendered.
+
+**Key Concepts:**
+1. **`generateMetadata` function**: An async function exported from a page or layout that receives `{ params, searchParams }` and returns a metadata object. Next.js calls it before rendering the page so the correct `<title>` and meta tags are emitted.
+2. **Params access**: In dynamic routes (e.g. `[mealSlug]`), `params` contains the segment values. In Next.js 15+, `params` is a Promise; you must `await params` before use.
+3. **Fallback for missing data**: When the resource (e.g. meal) does not exist, `generateMetadata` should return sensible fallback metadata (e.g. `{ title: 'Meal Not Found' }`) instead of throwing.
+4. **Cannot mix with static metadata**: A file cannot export both `metadata` and `generateMetadata`; the latter takes precedence for dynamic content.
+
+**Advantages:**
+- Each dynamic page (e.g. `/meals/some-meal-slug`) gets a unique, relevant title and description for SEO.
+- Social sharing and search results show meaningful content instead of a generic site title.
+- Fallback metadata ensures the HTML is valid even when the resource is missing (e.g. 404).
+
+**Disadvantages/Gotchas:**
+- `generateMetadata` runs before the page; avoid slow or blocking operations or consider caching.
+- If `getMeal` returns `undefined` and you access `meal.title` without a null check, the app will crash.
+- In Next.js 15, `params` must be awaited; omitting `await` can cause runtime issues depending on route configuration.
+
+**When to Consider Alternatives:**
+- Use static `metadata` when the title/description are fixed and do not depend on route data.
+- Use `generateMetadata` only for dynamic routes where the content is data-dependent (meals, blog posts, products, etc.).
+
+**Project implementation:** The meal detail page (`app/meals/[mealSlug]/page.js`) uses `generateMetadata` to set `title` and `description` from `getMeal(mealSlug)`, and returns `{ title: 'Meal Not Found' }` when the meal does not exist.
+
+### ⚙️ 133.2 Updating code/theory according the context:
+
+#### **Summary**
+- This section explains how to replace static metadata with `generateMetadata` for dynamic meal detail pages.
+- It walks through the problem (static metadata being wrong for `/meals/[mealSlug]`), introduces the `generateMetadata` skeleton, uses `params` to fetch meal data, and adds a null check for robustness.
+- Subsection 133.2.5 contrasts fragile vs robust implementations; 133.2.6 suggests an optional simplification (removing `await params` where unnecessary).
+
+#### 133.2.1 Static metadata problem in dynamic routes
+
+**Subsection Summary**
+- Shows that exporting static `metadata` (e.g. `title: 'All Meals'`) from a dynamic route page is incorrect: every meal URL would display the same title.
+- The code example highlights the problem: `export const metadata = { title: 'All Meals', description: '...' }` is wrong for `MealDetailsPage` because it does not reflect the specific meal.
+- This motivates the need for `generateMetadata` to compute metadata per request.
+
+```jsx
+/* app/meals/[mealSlug]/page.js */
+import { notFound } from 'next/navigation'
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+
+export const metadata = {                                                         // 👈🏽 ✅ ⚠️
+  title: 'All Meals',
+  description: 'Browse the delicious meals shared by our vibrant community.',
+}
+
+export default function MealDetailsPage({ params }) {
+  //const meal = getMeal(slug)
+  const meal = getMeal(params.mealSlug)
+
+  if(!meal) {
+    return notFound();
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image src={meal.image} alt={meal.title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${meal.creator_email}`}>{meal.creator}</a>
+          </p>
+          <p className={classes.summary}>{meal.summary}</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: meal.instructions.replace(/\n/g, '<br />'),
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+#### 133.2.2 Introducing generateMetadata skeleton
+
+**Subsection Summary**
+- Replaces the static `metadata` export with an async `generateMetadata` function that returns an empty object `{}`.
+- Demonstrates the required structure: `generateMetadata` must be async and must return an object (even if empty).
+- This skeleton is the foundation for adding dynamic values in the next steps.
+
+```jsx
+/* app/meals/[mealSlug]/page.js */
+import { notFound } from 'next/navigation'
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+
+// export const metadata = {
+//   title: 'All Meals',
+//   description: 'Browse the delicious meals shared by our vibrant community.',
+// }
+
+export async function generateMetadata(){                   // 👈🏽 ✅ (1)
+  return {};                                                // 👈🏽 ✅ (2) return an object always!
+}
+
+export default function MealDetailsPage({ params }) {
+  //const meal = getMeal(slug)
+  const meal = getMeal(params.mealSlug)
+
+  if(!meal) {
+    return notFound();
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image src={meal.image} alt={meal.title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${meal.creator_email}`}>{meal.creator}</a>
+          </p>
+          <p className={classes.summary}>{meal.summary}</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: meal.instructions.replace(/\n/g, '<br />'),
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+#### 133.2.3 Using params to fetch meal and set metadata
+
+**Subsection Summary**
+- Uses `params.mealSlug` to call `getMeal` and returns `title` and `description` from the meal data.
+- Shows the basic flow: receive `params` → fetch meal → return metadata object.
+- **Problem:** Does not handle the case when `getMeal` returns `undefined`; accessing `meal.title` and `meal.summary` will crash.
+- The note "🔥 NoFound page issue" refers to this crash when visiting a non-existent meal slug.
+
+```jsx
+/* app/meals/[mealSlug]/page.js */
+import { notFound } from 'next/navigation'
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+
+// export const metadata = {
+//   title: 'All Meals',
+//   description: 'Browse the delicious meals shared by our vibrant community.',
+// }
+
+export async function generateMetadata({ params }){
+  const meal = getMeal(params.mealSlug);
+  return {
+    title: meal.title,
+    description: meal.summary,
+  };
+}
+
+export default function MealDetailsPage({ params }) {
+  //const meal = getMeal(slug)
+  const meal = getMeal(params.mealSlug)
+
+  if(!meal) {
+    return notFound();
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image src={meal.image} alt={meal.title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${meal.creator_email}`}>{meal.creator}</a>
+          </p>
+          <p className={classes.summary}>{meal.summary}</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: meal.instructions.replace(/\n/g, '<br />'),
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+#### 133.2.4 Full implementation with null check
+
+**Subsection Summary**
+- Adds `if (!meal)` check in `generateMetadata` and returns `{ title: 'Meal Not Found' }` to prevent crashes.
+- Uses `await params` (Next.js 15 pattern) and destructures `mealSlug` before calling `getMeal`.
+- Both the page component and `generateMetadata` are async and use the same pattern for consistency.
+- The screenshot `section03-lecture133-001.png` illustrates the browser tab showing dynamic metadata for a specific meal.
+
+```jsx
+/* app/meals/[mealSlug]/page.js */
+import { notFound } from 'next/navigation'
+import classes from './page.module.css'
+import Image from 'next/image'
+import { getMeal } from '@/lib/meals'
+
+// export const metadata = {
+//   title: 'All Meals',
+//   description: 'Browse the delicious meals shared by our vibrant community.',
+// }
+
+export async function generateMetadata({ params }) {                  // 👈🏽 ✅ (1)
+  const { mealSlug } = await params;                                  // 👈🏽 ✅ (1)
+  const meal = getMeal(mealSlug);                                     // 👈🏽 ✅ (2)
+
+  if (!meal) {                                                        // 👈🏽 ✅ (3)
+    return { title: 'Meal Not Found' };
+  }
+
+  return {
+    title: meal.title,
+    description: meal.summary,
+  };
+}
+
+export default async function MealDetailsPage({ params }) {
+  const { mealSlug } = await params;                                  // 👈🏽 ✅ (1)
+  const meal = getMeal(mealSlug);                                     // 👈🏽 ✅ (2)
+
+  if(!meal) {
+    return notFound();
+  }
+  return (
+    <>
+      <header className={classes.header}>
+        <div className={classes.image}>
+          <Image src={meal.image} alt={meal.title} fill />
+        </div>
+        <div className={classes.headerText}>
+          <h1>{meal.title}</h1>
+          <p className={classes.creator}>
+            by <a href={`mailto: ${meal.creator_email}`}>{meal.creator}</a>
+          </p>
+          <p className={classes.summary}>{meal.summary}</p>
+        </div>
+      </header>
+      <main>
+        <p
+          className={classes.instructions}
+          dangerouslySetInnerHTML={{
+            __html: meal.instructions.replace(/\n/g, '<br />'),
+        }}>
+        </p>
+      </main>
+    </>
+  )
+}
+```
+
+![dynamic metadata generation](../img/section03-lecture133-001.png)
+
+#### 133.2.5 Comparison of fragile vs robust approaches
+
+**Subsection Summary**
+- Compares the implementation in 133.2.3 (params used directly, no null check) with 133.2.4 (params awaited, null check, fallback metadata).
+- Highlights why the second approach is production-ready: error safety, handling of missing meals, and robustness.
+- Notes that `await params` may be unnecessary in some Next.js setups; 133.2.6 addresses this.
+
+| Aspect                        | First code                                   | Second code                                        |
+| ----------------------------- | -------------------------------------------- | -------------------------------------------------- |
+| How `params` is used          | Uses `params.mealSlug` directly              | Destructures `mealSlug` from `params`              |
+| `await params`                | ❌ Not used                                   | ⚠️ Uses `await params` (unnecessary in most cases) |
+| Handling missing meal         | ❌ No check for missing meal                  | ✅ Checks `if (!meal)`                              |
+| Error safety                  | ❌ Can crash if `getMeal` returns `undefined` | ✅ Prevents crash by returning fallback metadata    |
+| Metadata when meal is missing | ❌ Throws error when accessing `meal.title`   | ✅ Returns `{ title: 'Meal Not Found' }`            |
+| Robustness                    | ⚠️ Fragile                                   | ✅ More robust                                      |
+| Best practice                 | ❌ Not ideal                                  | ✅ Closer to recommended pattern                    |
+| Readability                   | ✅ Simple                                     | ⚠️ Slightly more verbose                           |
+| Production readiness          | ⚠️ Risky                                     | ✅ Safer for real apps                              |
+
+#### 133.2.6 Optional refactor: removing await params
+
+**Subsection Summary**
+- Suggests removing `await params` if `params` is a plain object in the current Next.js version.
+- Shows `const { mealSlug } = params;` instead of `const { mealSlug } = await params;`.
+- In Next.js 15 with dynamic routes, `params` is typically a Promise and `await` is required; verify against the project's Next.js version.
+
+```js
+....
+export async function generateMetadata({ params }) { 
+  const { mealSlug } = params;                // 👈🏽 ✅ (remove the unnecessary "await")
+  const meal = getMeal(mealSlug);
+
+  if (!meal) {
+    return { title: 'Meal Not Found' };
+  }
+
+  return {
+    title: meal.title,
+    description: meal.summary,
+  };
+}
+....
+```
+
+### 🐞 133.3 Issues:
+
+- Subsection 133.2.6 suggests removing `await params`, but Next.js 15+ (and this project uses Next.js 16) requires `await params` because `params` is a Promise in dynamic routes; removing it would break runtime behavior.
+- The comparison table (133.2.5) marks "Uses `await params`" as "⚠️ unnecessary in most cases" — this is version-dependent and may be misleading for Next.js 15+ projects.
+- No validation or truncation of `meal.title` or `meal.summary` for SEO length limits (title ~60 chars, description ~160 chars).
+
+| Issue | Status | Log/Error |
+|---|---|---|
+| 133.2.6 suggests removing `await params` — incompatible with Next.js 15+ | ⚠️ Identified | `docs/LECTURE_STEPS.md` — In Next.js 15+, `params` is a Promise; `await` is required. Project uses Next.js 16. |
+| Comparison table marks `await params` as "unnecessary" | ℹ️ Informational | `docs/LECTURE_STEPS.md` 133.2.5 — Clarify that this applies to pre-Next.js 15 only. |
+| No SEO length guidance for dynamic metadata | ℹ️ Low Priority | `app/meals/[mealSlug]/page.js` — Consider truncating `title` and `description` for optimal search display. |
+
+### 🧱 133.4 Pending Fixes (TODO)
+
+- [ ] Do not remove `await params` in `app/meals/[mealSlug]/page.js`; keep it for Next.js 15+ compatibility.
+- [ ] Add a note in 133.2.6 that `await params` is required in Next.js 15+ dynamic routes.
+- [ ] Optionally add `openGraph` and `twitter` fields to `generateMetadata` in `app/meals/[mealSlug]/page.js` for social sharing previews.
+- [ ] Consider truncating `meal.title` and `meal.summary` in `generateMetadata` when exceeding SEO length limits (title ~60 chars, description ~160 chars).
+
+[↑ top — 133. Lesson 133 — *Adding Dynamic Metadata*](#-133-lesson-133--adding-dynamic-metadata)
 
 
 
